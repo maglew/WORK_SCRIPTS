@@ -1,0 +1,31 @@
+    for _ITERNAME_ in
+    (
+        select M.*,
+        K.CODE
+        from _TABLENAME_ M,
+        FPDTRWRK K
+        where M.PRN = SR.RN
+        and M.TRWRK = K.RN
+    )
+    loop
+        for _DOPITERNAME_ in
+        (
+            select S.*
+            from _DOPTABLENAME_ S
+            where S.PRN = _ITERNAME_.RN
+        )
+        loop
+            _DOPNODENAME_ := PKG_XMAKE.CONCAT(iCURSOR, _DOPNODENAME_, PKG_XMAKE.ELEMENT(iCURSOR, '_DOPNODETAG_',
+            PKG_XMAKE.ATTRIBUTES(iCURSOR,
+            PKG_XMAKE.ATTRIBUTE(iCURSOR, '_DOPATRTAG_', _DOPITERNAME_._DOPATRNAME_),
+            )));
+        end loop;
+        _NODENAME_ := PKG_XMAKE.CONCAT(iCURSOR, _NODENAME_, PKG_XMAKE.ELEMENT(iCURSOR, '_NODETAG_',
+        PKG_XMAKE.ELEMENT(iCURSOR,'_ATRBLOCKTAG_',
+        PKG_XMAKE.ATTRIBUTES(iCURSOR,
+        PKG_XMAKE.ATTRIBUTE(iCURSOR, '_ATRTAG_', _ITERNAME_._ATRNAME_),
+        ))
+        _DOPNODENAME_
+        ));
+        _DOPNODENAME_ := null;
+    end loop;

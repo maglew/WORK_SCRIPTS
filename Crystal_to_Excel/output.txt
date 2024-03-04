@@ -1,0 +1,120 @@
+create or replace procedure UDO_PR_MSUACC_REP_ABONLIST
+(
+)
+as
+LIST                    constant PKG_STD.tSTRING := 'Лист1';
+
+CELL_NPP       constant PKG_STD.tSTRING := 'NPP';--
+CELL_FIO       constant PKG_STD.tSTRING := 'FIO';--
+CELL_TOWN       constant PKG_STD.tSTRING := 'TOWN';--
+CELL_STREET       constant PKG_STD.tSTRING := 'STREET';--
+CELL_HOUSE       constant PKG_STD.tSTRING := 'HOUSE';--
+CELL_FLAT       constant PKG_STD.tSTRING := 'FLAT';--
+CELL_HOMEAREA       constant PKG_STD.tSTRING := 'HOMEAREA';--
+CELL_LANDAREA       constant PKG_STD.tSTRING := 'LANDAREA';--
+CELL_BUILDAREA       constant PKG_STD.tSTRING := 'BUILDAREA';--
+CELL_LIVING       constant PKG_STD.tSTRING := 'LIVING';--
+CELL_ANIMALS       constant PKG_STD.tSTRING := 'ANIMALS';--
+CELL_NOTE       constant PKG_STD.tSTRING := 'NOTE';--
+
+LINE_MAIN       constant PKG_STD.tSTRING := 'MAIN';--
+
+sNPP     PKG_STD.tSTRING := ' '; --
+sFIO     PKG_STD.tSTRING := ' '; --
+sTOWN     PKG_STD.tSTRING := ' '; --
+sSTREET     PKG_STD.tSTRING := ' '; --
+sHOUSE     PKG_STD.tSTRING := ' '; --
+sFLAT     PKG_STD.tSTRING := ' '; --
+sHOMEAREA     PKG_STD.tSTRING := ' '; --
+sLANDAREA     PKG_STD.tSTRING := ' '; --
+sBUILDAREA     PKG_STD.tSTRING := ' '; --
+sLIVING     PKG_STD.tSTRING := ' '; --
+sANIMALS     PKG_STD.tSTRING := ' '; --
+sNOTE     PKG_STD.tSTRING := ' '; --
+sSTR     PKG_STD.tSTRING := ' '; --
+s     PKG_STD.tSTRING := ' '; --
+s     PKG_STD.tSTRING := ' '; --
+s     PKG_STD.tSTRING := ' '; --
+s     PKG_STD.tSTRING := ' '; --
+s     PKG_STD.tSTRING := ' '; --
+
+begin
+  PRSG_EXCEL.PREPARE;
+  PRSG_EXCEL.SHEET_SELECT( LIST );
+  PRSG_EXCEL.CELL_DESCRIBE(CELL_NPP); --
+  PRSG_EXCEL.CELL_DESCRIBE(CELL_FIO); --
+  PRSG_EXCEL.CELL_DESCRIBE(CELL_TOWN); --
+  PRSG_EXCEL.CELL_DESCRIBE(CELL_STREET); --
+  PRSG_EXCEL.CELL_DESCRIBE(CELL_HOUSE); --
+  PRSG_EXCEL.CELL_DESCRIBE(CELL_FLAT); --
+  PRSG_EXCEL.CELL_DESCRIBE(CELL_HOMEAREA); --
+  PRSG_EXCEL.CELL_DESCRIBE(CELL_LANDAREA); --
+  PRSG_EXCEL.CELL_DESCRIBE(CELL_BUILDAREA); --
+  PRSG_EXCEL.CELL_DESCRIBE(CELL_LIVING); --
+  PRSG_EXCEL.CELL_DESCRIBE(CELL_ANIMALS); --
+  PRSG_EXCEL.CELL_DESCRIBE(CELL_NOTE); --
+
+  PRSG_EXCEL.LINE_DESCRIBE(LINE_MAIN); --
+
+  for rREC in
+  (
+  select
+  T.*
+  from
+  _TABBLENAME_ T
+  where
+  S.IDENT = nIDENT
+  and S.DOCUMENT = T.RN
+  )
+  loop
+      sNPP:= ' '; --
+      sFIO:= ' '; --
+      sTOWN:= ' '; --
+      sSTREET:= ' '; --
+      sHOUSE:= ' '; --
+      sFLAT:= ' '; --
+      sHOMEAREA:= ' '; --
+      sLANDAREA:= ' '; --
+      sBUILDAREA:= ' '; --
+      sLIVING:= ' '; --
+      sANIMALS:= ' '; --
+      sNOTE:= ' '; --
+      sSTR:= ' '; --
+      s:= ' '; --
+      s:= ' '; --
+      s:= ' '; --
+      s:= ' '; --
+      s:= ' '; --
+
+      PRSG_EXCEL.CELL_VALUE_WRITE(CELL_NPP, sNPP); --
+      PRSG_EXCEL.CELL_VALUE_WRITE(CELL_FIO, sFIO); --
+      PRSG_EXCEL.CELL_VALUE_WRITE(CELL_TOWN, sTOWN); --
+      PRSG_EXCEL.CELL_VALUE_WRITE(CELL_STREET, sSTREET); --
+      PRSG_EXCEL.CELL_VALUE_WRITE(CELL_HOUSE, sHOUSE); --
+      PRSG_EXCEL.CELL_VALUE_WRITE(CELL_FLAT, sFLAT); --
+      PRSG_EXCEL.CELL_VALUE_WRITE(CELL_HOMEAREA, sHOMEAREA); --
+      PRSG_EXCEL.CELL_VALUE_WRITE(CELL_LANDAREA, sLANDAREA); --
+      PRSG_EXCEL.CELL_VALUE_WRITE(CELL_BUILDAREA, sBUILDAREA); --
+      PRSG_EXCEL.CELL_VALUE_WRITE(CELL_LIVING, sLIVING); --
+      PRSG_EXCEL.CELL_VALUE_WRITE(CELL_ANIMALS, sANIMALS); --
+      PRSG_EXCEL.CELL_VALUE_WRITE(CELL_NOTE, sNOTE); --
+
+          for rRECS in
+          (
+          select
+          S.*
+          from
+          _TABBLENAME_ S
+          where
+          rREC.RN = S.PRN
+          )
+          loop
+
+          end loop;
+
+  if  _COND_ then --
+  PRSG_EXCEL.LINE_DELETE(LINE_MAIN); --
+  end if; --
+
+  end loop;
+end;

@@ -1,0 +1,151 @@
+create or replace view udo_v_payacc_sed
+(nrn, nrn_acc, ncompany, ncrn, nstatus, sdoctype, spref, snumb, svdoctype, svdocnumb, svdocdate, daccdate, nseller, sseller_code, sseller_name, sseller_adress, ssl_country, ssl_reg, ssl_district, ssl_city, ssl_street, ssl_house, ssl_block, ssl_flat, ssl_post, ssl_phone, ssl_fax, ssl_telex, ssl_mail, ssl_agnidnumb, ssl_reason_code, ssl_econcode, ssl_orgcode, ssl_agnacc, ssl_acc, ssl_bankname, ssl_bankcode, ssl_bankacc, ssender_code, ssender_name, ssender_addr, npayer, spayer_code, spayer_name, spayer_adress, spr_country, spr_reg, spr_district, spr_city, spr_street, spr_house, spr_block, spr_flat, spr_post, spr_phone, spr_fax, spr_telex, spr_mail, spr_agnidnumb, spr_reason_code, spr_econcode, spr_orgcode, spr_agnacc, spr_acc, spr_bankname, spr_bankcode, spr_bankacc, src_code, src_name, src_addr, scurrency, nsumm, nsummwithnds, n_discount, scomments, scompname, sfacc_numb, nfcacgr, s_chek, p_vdoc_date, starif, njur_pers, ssl_kpp, ssl_okved, nident)
+as
+select
+  P.RN,
+  P.RN,
+  P.COMPANY,
+  P.CRN,
+  P.STATUS,
+  DOC.DOCCODE,
+  LTRIM(P.PREF),
+  LTRIM(P.NUMB),
+  VDOC.DOCCODE,
+  P.VDOC_NUMB,
+  P.VDOC_DATE,
+  P.ACCDATE,
+  A.RN,
+  A.AGNABBR,
+  A.AGNNAME,
+  trim(A.AGN_COMMENT),
+  CO.GEOGRNAME,
+  RE.GEOGRNAME,
+  DI.GEOGRNAME,
+  CI.GEOGRNAME,
+  ST.GEOGRNAME,
+  A.ADDR_HOUSE,
+  A.ADDR_BLOCK,
+  A.ADDR_FLAT,
+  A.ADDR_POST,
+  A.PHONE,
+  A.FAX,
+  A.TELEX,
+  A.MAIL,
+  A.AGNIDNUMB,
+  A.REASON_CODE,
+  A.ECONCODE,
+  A.ORGCODE,
+  AC.STRCODE,
+  AC.AGNACC,
+  NVL(AC.BANKNAMEACC, BC.AGNNAME),
+  NVL(AC.BANKFCODEACC, B.BANKFCODEACC),
+  NVL(AC.BANKACC, B.BANKACC),
+  S.AZS_NUMBER,
+  S.AZS_NAME,
+  S.AZS_ADDRESS,
+  A1.RN,
+  A1.AGNABBR,
+  A1.AGNNAME,
+  A1.AGN_COMMENT,
+  CO1.GEOGRNAME,
+  RE1.GEOGRNAME,
+  DI1.GEOGRNAME,
+  CI1.GEOGRNAME,
+  ST1.GEOGRNAME,
+  A1.ADDR_HOUSE,
+  A1.ADDR_BLOCK,
+  A1.ADDR_FLAT,
+  A1.ADDR_POST,
+  A1.PHONE,
+  A1.FAX,
+  A1.TELEX,
+  A1.MAIL,
+  A1.AGNIDNUMB,
+  A1.REASON_CODE,
+  A1.ECONCODE,
+  A1.ORGCODE,
+  AC1.STRCODE,
+  AC1.AGNACC,
+  NVL(AC1.BANKNAMEACC, BC1.AGNNAME),
+  NVL(AC1.BANKFCODEACC, B1.BANKFCODEACC),
+  NVL(AC1.BANKACC, B1.BANKACC),
+  F.CODE,
+  F.NAME,
+  F.ADDRESS,
+  CUR.INTCODE,
+  P.SUMM,
+  P.SUMMWITHNDS,
+  P.DISCOUNT,
+  P.COMMENTS,
+  C.NAME,
+  FAC.NUMB,
+  FAC.Fcacgr,
+  1,
+  p.vdoc_date,
+  t.code,
+  p.jur_pers,
+  A.REASON_CODE,                       -- SSL_KPP
+  PKGR_DOC.PR_GET_OKVED_BY_AGENT(A.RN), -- SSL_OKVED
+  sed.nident
+from
+  UDO_T_PAYACC_SED sed,
+  PAYACC    P,
+  COMPANIES C,
+  AGNLIST   A,
+  GEOGRAFY CO,
+  GEOGRAFY RE,
+  GEOGRAFY DI,
+  GEOGRAFY CI,
+  GEOGRAFY ST,
+  AGNACC    AC,
+  AGNBANKS B,
+  AGNLIST   BC,
+  FACEACC   FAC,
+  AGNLIST   A1,
+  GEOGRAFY CO1,
+  GEOGRAFY RE1,
+  GEOGRAFY DI1,
+  GEOGRAFY CI1,
+  GEOGRAFY ST1,
+  AGNACC   AC1,
+  AGNBANKS  B1,
+  AGNLIST   BC1,
+  DOCTYPES  DOC,
+  DOCTYPES  VDOC,
+  CURNAMES  CUR,
+  AZSAZSLISTMT S,
+  AGNFIFO   F,
+  Dictarif  t,
+  JURPERSONS JP
+
+where
+  p.rn = sed.ndoc_rn
+  and P.COMPANY = C.RN
+  and P.JUR_PERS = JP.RN
+  and JP.AGENT   = A.RN(+)
+  and A.ADDR_COUNTRY_RN  = CO.RN(+)
+  and A.ADDR_REG_RN      = RE.RN(+)
+  and A.ADDR_DISTRICT_RN = DI.RN(+)
+  and A.ADDR_CITY_RN     = CI.RN(+)
+  and A.ADDR_STREET_RN   = ST.RN(+)
+  and P.SELF_AGNACC      = AC.RN
+  and AC.AGNBANKS        = B.RN(+)
+  and B.AGNRN            = BC.RN(+)
+  --
+  and P.FACEACC          = FAC.RN
+  and FAC.AGENT          = A1.RN(+)
+  and A1.ADDR_COUNTRY_RN  = CO1.RN(+)
+  and A1.ADDR_REG_RN      = RE1.RN(+)
+  and A1.ADDR_DISTRICT_RN = DI1.RN(+)
+  and A1.ADDR_CITY_RN     = CI1.RN(+)
+  and A1.ADDR_STREET_RN   = ST1.RN(+)
+  and P.AGNACC            = AC1.RN
+  and AC1.AGNBANKS        = B1.RN(+)
+  and B1.AGNRN            = BC1.RN(+)
+  and P.CURRENCY          = CUR.RN
+  and P.DOCTYPE           = DOC.RN
+  and P.VDOC_TYPE         = VDOC.RN (+)
+  and P.STORE             = S.RN(+)
+  and P.FIFO              = F.RN(+)
+  and P.Tarif             = t.rn   (+)
+;

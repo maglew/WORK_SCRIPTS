@@ -1,0 +1,16 @@
+create or replace function UDO_F_XXX
+(
+  NCOMPANY                  in number,               -- Организация
+  NRN                       in number                -- Регистрационный номер
+) 
+return varchar2
+as
+  /* grant execute on UDO_F_XXX to public; */
+  SRESULT                   PKG_STD.TSTRING;             -- Результат функции
+  
+begin
+  /* TEXT_XXX */
+  
+  return SRESULT;
+
+end;

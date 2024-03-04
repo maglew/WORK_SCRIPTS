@@ -1,0 +1,43 @@
+/* Предложения в проект ГЗ (затраты ОЦДИ) */
+create table FPDPPGZWIOOCD
+(
+/* Регистрационный номер */
+RN                number( 17 ) not null,
+/* Организация */
+COMPANY           number( 17 ) not null,
+/* Родитель */
+PRN               number( 17 ) not null,
+/* ОЦДИ_наименование */
+OCDI_NAME         varchar2( 2000 ) not null
+                  constraint C_FPDPPGZWIOOCD_OCDI_NAME_NB check( rtrim(OCDI_NAME) is not null ),
+/* Количество ед. оборудования */
+O_QUANT           number( 17 ) default 1 not null,
+/* Группа */
+O_GROUP           number( 1 ) default 0 not null
+                  constraint C_FPDPPGZWIOOCD_O_GROUP_VAL check( O_GROUP in (0,1) ),
+/* Год_ввода в экспл */
+YEAR_ENTRY        number( 4 ) not null,
+/* ОЦДИ_з-очередной год */
+Z_OCDI_YEAR       number( 17,5 ) default 0 not null,
+/* ОЦДИ_з_очередной год-4 */
+Z_OCDI_YEAR_4     number( 17,5 ) default 0 not null,
+/* ОЦДИ_з_очередной год-3 */
+Z_OCDI_YEAR_3     number( 17,5 ) default 0 not null,
+/* ОЦДИ_з_очередной год-2 */
+Z_OCDI_YEAR_2     number( 17,5 ) default 0 not null,
+/* Время использования */
+USE_TIME          number( 6,2 ) not null,
+/* Затраты */
+COST              number( 17,5 ) default 0 not null,
+/* Затраты 1-й год */
+COST_1YEAR        number( 17,5 ) default 0 not null,
+/* Затраты 2-й год */
+COST_2YEAR        number( 17,5 ) default 0 not null,
+/* Корректирующий коэф. 1-й год */
+COEF_1YEAR        number( 7,5 ) default 0 not null,
+/* Корректирующий коэф. 2-й год */
+COEF_2YEAR        number( 7,5 ) default 0 not null,
+/* ключи */
+constraint C_FPDPPGZWIOOCD_PK primary key (RN),
+constraint C_FPDPPGZWIOOCD_UK unique (PRN,OCDI_NAME)
+);

@@ -1,0 +1,3956 @@
+create or replace package body PKG_FP0220 as
+  /*
+    КОНСТАНТЫ
+  */
+  /* буфер */
+  TYPE_SERV_          constant integer := 0; -- запись "услуги"
+  TYPE_WORK_          constant integer := 1; -- запись "работы"
+  TYPE_SERV_TR_       constant integer := 2; -- запись "ПНЗ" услуг (территория)
+  TYPE_WORK_TR_       constant integer := 3; -- запись "ПНЗ" работ (территория)
+  TYPE_PER_           constant integer := 4; -- запись "период"
+  TYPE_SERV_PNZ_      constant integer := 5; -- запись СтрокаУслугиПнзДетализация
+  TYPE_WORK_PNZ_      constant integer := 6; -- запись СтрокаРаботыПнзДетализация
+  TYPE_SERV_PNZ_NULL_ constant integer := 7; -- запись СтрокаУслугиПнзДетализация (пустая)
+  TYPE_WORK_PNZ_NULL_ constant integer := 8; -- запись СтрокаРаботыПнзДетализация (пустая)
+  TYPE_SERV_TR_NULL_  constant integer := 9; -- запись "ПНЗ" услуг (территория) (пустая)
+  TYPE_WORK_TR_NULL_  constant integer := 10; -- запись "ПНЗ" работ (территория) (пустая)
+  TYPE_WORK_DET_      constant integer := 11; -- запись детализации работы
+
+  /* количество пустых строк */
+  ROW_NULL_ constant integer := 10;
+
+  /* книга */
+  -- лист "ПНЗ"
+  SHEET_PNZ_ constant PKG_STD.TSTRING := 'ПНЗ';
+  -- таблица  "Заголовок"
+  TABLE_HEAD_ constant PKG_STD.TSTRING := 'Заголовок';
+  -- таблица "Данные"
+  TABLE_CALC_ constant PKG_STD.TSTRING := 'Расчеты';
+  -- строки
+  ROW_ALL_ constant PKG_STD.TSTRING := 'СтрокаВсего';
+  --
+  ROW_SERV_             constant PKG_STD.TSTRING := 'СтрокаУслуги';
+  ROW_SERV_IT_          constant PKG_STD.TSTRING := 'СтрокаУслугиИтог';
+  ROW_SERV_PNZ_         constant PKG_STD.TSTRING := 'СтрокаУслугиПНЗ';
+  ROW_SERV_PNZ_IT_      constant PKG_STD.TSTRING := 'СтрокаУслугиПНЗИтог';
+  ROW_SERV_TR_          constant PKG_STD.TSTRING := 'СтрокаУслугиТер';
+  ROW_SERV_PNZ_NULL_    constant PKG_STD.TSTRING := 'СтрокаУслугиПНЗ_Пустая';
+  ROW_SERV_PNZ_IT_NULL_ constant PKG_STD.TSTRING := 'СтрокаУслугиПНЗИтог_Пустая';
+  ROW_SERV_TR_NULL_     constant PKG_STD.TSTRING := 'СтрокаУслугиТер_Пустая';
+  ROW_SERV_ALL_         constant PKG_STD.TSTRING := 'СтрокаУслугиВсего';
+  --
+  ROW_WORK_             constant PKG_STD.TSTRING := 'СтрокаРаботы';
+  ROW_WORK_IT_          constant PKG_STD.TSTRING := 'СтрокаРаботыИтог';
+  ROW_WORK_PNZ_         constant PKG_STD.TSTRING := 'СтрокаРаботыПНЗ';
+  ROW_WORK_PNZ_IT_      constant PKG_STD.TSTRING := 'СтрокаРаботыПНЗИтог';
+  ROW_WORK_TR_          constant PKG_STD.TSTRING := 'СтрокаРаботыТер';
+  ROW_WORK_PNZ_NULL_    constant PKG_STD.TSTRING := 'СтрокаРаботыПНЗ_Пустая';
+  ROW_WORK_PNZ_IT_NULL_ constant PKG_STD.TSTRING := 'СтрокаРаботыПНЗИтог_Пустая';
+  ROW_WORK_TR_NULL_     constant PKG_STD.TSTRING := 'СтрокаРаботыТер_Пустая';
+  ROW_WORK_ALL_         constant PKG_STD.TSTRING := 'СтрокаРаботыВсего';
+
+  -- неизменные ячейки
+  COLUMN_PP_           constant PKG_STD.TSTRING := 'Номер';
+  COLUMN_DET_OR_TRWRK_ constant PKG_STD.TSTRING := 'Территория_или_детализация';
+  COLUMN_WORKNAME_     constant PKG_STD.TSTRING := 'Наименование';
+  -- ячейки итогов
+  COLUMN_COSTNAME_    constant PKG_STD.TSTRING := 'Наименование_затрат';
+  COLUMN_APPOINTMENT_ constant PKG_STD.TSTRING := 'Назначение_затрат';
+  COLUMN_RATIONALE_   constant PKG_STD.TSTRING := 'Обоснование';
+  COLUMN_D_YEAR_      constant PKG_STD.TSTRING := 'Очередной_год';
+  COLUMN_D_1YEAR_     constant PKG_STD.TSTRING := 'Первый_год';
+  COLUMN_D_2YEAR_     constant PKG_STD.TSTRING := 'Второй_год';
+  -- атрибуты
+  ATTR_COLOR_ constant PKG_STD.TSTRING := 'Interior.ColorIndex=40';
+  -- константы для формул
+  FORMULA_SUMM_ constant PKG_STD.TSTRING := 'ОКРУГЛ(СУММЕСЛИ(%s!%s:%s;"<>";%s!%s:%s);5)';
+
+  -- переменные
+  TROW_ALL_SERV PKG_CONTVALLOC.TCONTAINER;
+  TROW_ALL_WORK PKG_CONTVALLOC.TCONTAINER;
+  NIDENT        PKG_STD.TREF;
+  NPRN          PKG_STD.TREF;
+  NCOMPANY      PKG_STD.TREF := PKG_SESSION.GET_COMPANY; -- идентификатор организации
+
+  type TPER is record(
+    JUR_NAME CALCTAB_DATA.CODE_B01%type, -- наименование организации
+    PRD_CODE CALCTAB_DATA.CODE_B01%type -- мнемокод периода
+    );
+
+  type TSW is record(
+    type          CALCTAB_DATA.TYPE%type, -- тип строки
+    GZW_NUM       CALCTAB_DATA.SIGN_A01%type, -- номер услуги/работы
+    GZW_NUM2      CALCTAB_DATA.SIGN_A02%type, -- номер детализации пнз
+    GZW_RN        CALCTAB_DATA.REF_A01%type, -- регистрационный номер аботы
+    GZW_COMPANY   CALCTAB_DATA.REF_A02%type, -- организация
+    PNZ_PRN       CALCTAB_DATA.REF_A04%type, -- RN спецификации 1
+    PNZ_RN        CALCTAB_DATA.REF_A05%type, -- RN спецификации 2
+    TRWRK_RN      CALCTAB_DATA.REF_A06%type, -- RN территории
+    LWRK_RN       CALCTAB_DATA.REF_A08%type, -- регистрационный номер записи перечень услуг/работ
+    ORGD_RN       CALCTAB_DATA.REF_B01%type, -- регистрационный номер детализации работы
+    WORKNAME      CALCTAB_DATA.NAME_A01%type, -- наименование работы
+    TRWRK_NAME    CALCTAB_DATA.NAME_A03%type, -- наименование территории
+    ORGD_NAME     CALCTAB_DATA.NAME_A04%type, -- наименование детализации работы
+    D_COSTNAME    CALCTAB_DATA.NAME_B01%type, -- Наименование затраты
+    D_APPOINTMENT CALCTAB_DATA.NAME_B02%type, -- Назначение
+    D_RATIONALE   CALCTAB_DATA.NAME_B03%type, -- Обоснование
+    TRWRK_CODE    CALCTAB_DATA.CODE_A02%type, -- мнемокод территории
+    PNZ_YEAR      CALCTAB_DATA.COEFF_A01%type,
+    PNZ_1YEAR     CALCTAB_DATA.COEFF_A02%type,
+    PNZ_2YEAR     CALCTAB_DATA.COEFF_A03%type,
+    D_YEAR        CALCTAB_DATA.COEFF_B01%type,
+    D_1YEAR       CALCTAB_DATA.COEFF_B02%type,
+    D_2YEAR       CALCTAB_DATA.COEFF_B03%type);
+
+  -- адреса ячеек
+  type TCELL is record(
+    PNZ     varchar2(10),
+    D_YEAR  varchar2(10),
+    D_1YEAR varchar2(10),
+    D_2YEAR varchar2(10));
+
+  /* чтение записи периода */
+  procedure READ_PER
+  (
+    NTYPE_PER in number,
+    RPER      out nocopy TPER
+  ) as
+  begin
+    begin
+      select CODE_B01,
+             CODE_B02
+        into RPER.JUR_NAME,
+             RPER.PRD_CODE
+        from CALCTAB_DATA
+       where type = NTYPE_PER
+         and ROWNUM = 1;
+    exception
+      when NO_DATA_FOUND then
+        P_EXCEPTION(0, 'Запись периода не определена.');
+    end;
+  end READ_PER;
+
+  /* чтение записи работы/услуги */
+  procedure READ_SW
+  (
+    NTYPE_WORK in number,
+    NRN        in number,
+    RSW        out nocopy TSW
+  ) as
+  begin
+    /* Считываем строку услуги/работы
+    или строку по детализации ПНЗ */
+    if NRN <> 0 then
+      begin
+        select type,
+               SIGN_A01,
+               SIGN_A02,
+               REF_A01,
+               REF_A02,
+               REF_A04,
+               REF_A05,
+               REF_A06,
+               REF_B01,
+               NAME_A01,
+               NAME_A03,
+               NAME_A04,
+               NAME_B01,
+               NAME_B02,
+               NAME_B03,
+               CODE_A02,
+               COEFF_A01,
+               COEFF_A02,
+               COEFF_A03,
+               COEFF_B01,
+               COEFF_B02,
+               COEFF_B03
+          into RSW.TYPE, -- TYPE
+               RSW.GZW_NUM, -- SIGN_A01
+               RSW.GZW_NUM2, -- SIGN_A02
+               RSW.GZW_RN, -- REF_A01
+               RSW.GZW_COMPANY, -- REF_A02
+               RSW.PNZ_PRN, -- REF_A04
+               RSW.PNZ_RN, -- REF_A05
+               RSW.TRWRK_RN, -- REF_A06
+               RSW.ORGD_RN, -- REF_B01
+               RSW.WORKNAME, -- NAME_A01
+               RSW.TRWRK_NAME, -- NAME_A03
+               RSW.ORGD_NAME, -- NAME_A04
+               RSW.D_COSTNAME, -- NAME_B01
+               RSW.D_APPOINTMENT, -- NAME_B02
+               RSW.D_RATIONALE, -- NAME_B03
+               RSW.TRWRK_CODE, -- CODE_A02
+               RSW.PNZ_YEAR, -- COEFF_A01
+               RSW.PNZ_1YEAR, -- COEFF_A02
+               RSW.PNZ_2YEAR, -- COEFF_A03
+               RSW.D_YEAR, -- COEFF_B01
+               RSW.D_1YEAR, -- COEFF_B02
+               RSW.D_2YEAR -- COEFF_B03
+          from CALCTAB_DATA
+         where ((REF_A01 = NRN and type = case
+                 when NTYPE_WORK = 0 then
+                  TYPE_SERV_
+                 when NTYPE_WORK = 1 then
+                  TYPE_WORK_
+               end) or (REF_A05 = NRN and type = case
+                 when NTYPE_WORK = 0 then
+                  TYPE_SERV_PNZ_
+                 when NTYPE_WORK = 1 then
+                  TYPE_WORK_PNZ_
+               end) or (REF_A09 = NRN) or (REF_B01 = NRN and type = TYPE_WORK_DET_));
+      exception
+        when NO_DATA_FOUND then
+          P_EXCEPTION(0, NRN);
+      end;
+    end if;
+  end READ_SW;
+
+  /* группировка "Период" */
+  procedure GROUPING_PERIOD
+  (
+    NTYPE     in number,
+    NTYPE_PER in number
+  ) as
+  begin
+    /* группировка "Период" */
+    insert into CALCTAB_DATA
+      (type,
+       --
+       CODE_B01, -- JUR_NAME
+       CODE_B02 -- PRD_CODE
+       --
+       --DATE_A01, -- PERIOD_FR
+       --DATE_A02  -- PERIOD_TO
+       )
+      select distinct NTYPE_PER,
+                      --
+                      CODE_B01 as JUR_NAME,
+                      CODE_B02 as PRD_CODE
+      --
+      --DATE_A01 as PERIOD_FR,
+      --DATE_A02 as PERIOD_TO
+        from CALCTAB_DATA
+       where type = NTYPE;
+  end GROUPING_PERIOD;
+
+  /* процедура инициализации */
+  procedure DO_INIT as
+    NEXISTS         number(1);
+    NCOUNT_TR       integer := 0;
+    NPNZD_COUNT     integer := 0;
+    NPNZD_COUNT_ALL integer := 0;
+    NPNZD_RN        PKG_STD.TREF;
+    NPNZD_PRN       PKG_STD.TREF;
+    NZ_YEAR         PKG_STD.TSUMM;
+    NZ_1YEAR        PKG_STD.TSUMM;
+    NZ_2YEAR        PKG_STD.TSUMM;
+
+    NPNZ_PRN      PKG_STD.TREF;
+    NPNZ_PRN_PREV PKG_STD.TREF;
+    NTRWRK_RN     PKG_STD.TREF;
+    STRWRK_NAME   PKG_STD.TSTRING;
+    STRWRK_CODE   PKG_STD.TSTRING;
+    NGZW_RN_PREV  PKG_STD.TREF;
+    NPP           integer := 0;
+  begin
+    /* Цикл по отмеченным услугам/работам */
+    for RREC_SW in (select B.BLTYPE as type,
+                           ROW_NUMBER() OVER(partition by B.BLTYPE order by B.UNIQNUM, B.WORKNAME) as GZW_NUM, -- № п/п
+                           W.RN as GZW_RN, -- регистрационный номер
+                           W.COMPANY as GZW_COMPANY, -- организация
+                           O.RN as ORGD_RN, -- регистрационный номер детализации
+                           B.WORKCODE || ' ' || B.WORKNAME || ' ' || case
+                             when O.NAME is not null then
+                              '(' || O.NAME || ') '
+                             else
+                              ''
+                           end || SERVCON1 || ' ' || SERVCON2 || ' ' || SERVCON3 || ' ' || SERVCND1 || ' ' || SERVCND2 as WORKNAME, -- наименование услуги/работы (полное)
+                           B.WORKNAME as WORKN, -- наименование услуги/работы
+                           O.NAME as ORGD_NAME, -- наименование детализация
+                           B.UNIQNUM as UNIQNUM, -- уникальный номер
+                           JA.AGNNAME as JUR_NAME, --
+                           P.CODE as PRD_CODE --
+                      from FPDPRPPROJGZW W,
+                           FPDLWRK       L,
+                           FPDBLWRK      B,
+                           FPDPRPPROJGZ  J,
+                           GMZPLANPRD    P,
+                           FPDLWRKORGD   O,
+                           FPDORG        JO,
+                           JURPERSONS    JP,
+                           AGNLIST       JA,
+                           SELECTLIST    SL
+                     where SL.IDENT = NIDENT
+                       and SL.DOCUMENT = W.RN
+                       and J.RN = W.PRN
+                       and J.PLANPRD = P.RN
+                       and W.LWRK = L.RN
+                       and L.BLWRK = B.RN
+                       and W.LWRKORGD = O.RN(+)
+                       and J.ORG = JO.RN
+                       and JO.JUR_PERS = JP.RN
+                       and JP.AGENT = JA.RN)
+    loop
+      /* "Итоговая строка" по услуге/работе */
+      insert into CALCTAB_DATA
+        (type, -- TYPE
+         SIGN_A01, -- GZW_NUM
+         REF_A01, -- GZW_RN
+         REF_A02, -- GZW_COMPANY
+         REF_B01, --
+         NAME_A01, -- WORKNAME
+         NAME_A02, -- WORKN
+         NAME_A04, --
+         CODE_B01, -- JUR_NAME
+         CODE_B02 -- PRD_CODE
+         )
+      values
+        (RREC_SW.TYPE,
+         RREC_SW.GZW_NUM,
+         RREC_SW.GZW_RN,
+         RREC_SW.GZW_COMPANY,
+         null,
+         RREC_SW.WORKNAME,
+         RREC_SW.WORKN,
+         null,
+         RREC_SW.JUR_NAME,
+         RREC_SW.PRD_CODE);
+      /* Итоговая строка для работ с детализацией */
+      if RREC_SW.TYPE = 1 and RREC_SW.ORGD_RN is not null then
+        /* Если работа сменилась - обнуляем номер детализации */
+        if NGZW_RN_PREV <> RREC_SW.GZW_RN then
+          NPP := 0;
+        end if;
+
+        NPP := NPP + 1;
+        insert into CALCTAB_DATA
+          (type, -- TYPE
+           SIGN_A01, -- GZW_NUM
+           SIGN_A02, -- GZW_NUM2
+           REF_A01, -- GZW_RN
+           REF_A02, -- GZW_COMPANY
+           REF_B01, -- ORGD_RN
+           NAME_A01, -- WORKNAME
+           NAME_A02, -- WORKN
+           NAME_A04, -- ORGD_NAME
+           CODE_B01, -- JUR_NAME
+           CODE_B02 -- PRD_CODE
+           )
+        values
+          (TYPE_WORK_DET_,
+           RREC_SW.GZW_NUM,
+           NPP,
+           RREC_SW.GZW_RN,
+           RREC_SW.GZW_COMPANY,
+           RREC_SW.ORGD_RN,
+           RREC_SW.WORKNAME,
+           RREC_SW.WORKN,
+           RREC_SW.ORGD_NAME,
+           RREC_SW.JUR_NAME,
+           RREC_SW.PRD_CODE);
+      end if;
+
+      /* Цикл по детализации ПНЗ */
+      for RPNZD in (select PNZD.COSTNAME,
+                           PNZD.APPOINTMENT,
+                           PNZD.RATIONALE
+                      from FPDPPGZWPNZD PNZD,
+                           FPDPPGZWPNZ  PNZ
+                     where PNZD.PRN = PNZ.RN
+                       and PNZ.PRN = RREC_SW.GZW_RN
+                     group by PNZD.COSTNAME,
+                              PNZD.APPOINTMENT,
+                              PNZD.RATIONALE)
+      loop
+        /* Строка детализации ПНЗ*/
+        insert into CALCTAB_DATA
+          (type, -- TYPE
+           SIGN_A01, -- GZW_NUM
+           REF_A01, -- GZW_RN
+           REF_A02, -- GZW_COMPANY
+           REF_B01, -- ORGD_RN
+           NAME_A04, -- ORGD_NAME
+           NAME_B01, -- D_COSTNAME
+           NAME_B02, -- D_APPOINTMENT
+           NAME_B03 -- D_RATIONALE
+           )
+        values
+          (case when RREC_SW.TYPE = 0 then TYPE_SERV_PNZ_ when RREC_SW.TYPE = 1 then TYPE_WORK_PNZ_ end,
+           null,
+           RREC_SW.GZW_RN,
+           RREC_SW.GZW_COMPANY,
+           RREC_SW.ORGD_RN,
+           RREC_SW.ORGD_NAME,
+           RPNZD.COSTNAME,
+           RPNZD.APPOINTMENT,
+           RPNZD.RATIONALE);
+
+        /* Определяем кол-во территорий по услуге/работе */
+        begin
+          select count(*)
+            into NCOUNT_TR
+            from FPDPPGZWPNZ M
+           where M.PRN = RREC_SW.GZW_RN
+             and M.TRWRK is not null;
+        end;
+
+        if NCOUNT_TR > 1 then
+
+          /* Цикл по территориям услуги/работы */
+          for RTR in (select M.*,
+                             WRK.NAME as TRWRK_NAME,
+                             WRK.CODE as TRWRK_CODE
+                        from FPDPPGZWPNZ M,
+                             FPDTRWRK    WRK
+                       where M.PRN = RREC_SW.GZW_RN
+                         and M.TRWRK = WRK.RN)
+          loop
+            /* Поиск текущей детализации в территории */
+            begin
+              select PNZD.RN,
+                     PNZD.Z_YEAR,
+                     PNZD.Z_1YEAR,
+                     PNZD.Z_2YEAR
+                into NPNZD_RN,
+                     NZ_YEAR,
+                     NZ_1YEAR,
+                     NZ_2YEAR
+                from FPDPPGZWPNZD PNZD
+               where CMP_VC2(PNZD.COSTNAME, RPNZD.COSTNAME) = 1
+                 and CMP_VC2(PNZD.APPOINTMENT, RPNZD.APPOINTMENT) = 1
+                 and CMP_VC2(PNZD.RATIONALE, RPNZD.RATIONALE) = 1
+                 and PNZD.PRN = RTR.RN;
+            exception
+              when NO_DATA_FOUND then
+                NPNZD_RN := null;
+                NZ_YEAR  := null;
+                NZ_1YEAR := null;
+                NZ_2YEAR := null;
+            end;
+
+            /* */
+            insert into CALCTAB_DATA
+              (type, -- TYPE
+               SIGN_A01, -- GZW_NUM
+               REF_A01, -- GZW_RN
+               REF_A02, -- GZW_COMPANY
+               REF_A04, -- PNZ_PRN
+               REF_A05, -- PNZ_RN
+               REF_A06, -- TRWRK_RN
+               REF_A09, --
+               REF_B01, -- ORGD_RN
+               NAME_A03, -- TRWRK_NAME
+               NAME_A04, -- ORGD_NAME
+               NAME_B01, -- D_COSTNAME
+               NAME_B02, -- D_APPOINTMENT
+               NAME_B03, -- D_RATIONALE
+               CODE_A02, -- TRWRK_CODE
+               COEFF_B01, -- D_YEAR
+               COEFF_B02, -- D_1YEAR
+               COEFF_B03 -- D_2YEAR
+               )
+            values
+              (case when RREC_SW.TYPE = 0 then TYPE_SERV_TR_ when RREC_SW.TYPE = 1 then TYPE_WORK_TR_ end,
+               null,
+               RREC_SW.GZW_RN,
+               RREC_SW.GZW_COMPANY,
+               RTR.RN,
+               NPNZD_RN,
+               RTR.TRWRK,
+               GEN_IDENT,
+               RREC_SW.ORGD_RN,
+               RTR.TRWRK_NAME,
+               RREC_SW.ORGD_NAME,
+               RPNZD.COSTNAME,
+               RPNZD.APPOINTMENT,
+               RPNZD.RATIONALE,
+               RTR.TRWRK_CODE,
+               NZ_YEAR,
+               NZ_1YEAR,
+               NZ_2YEAR);
+          end loop;
+        else
+          begin
+            select M.RN,
+                   PNZD.RN,
+                   M.TRWRK,
+                   WRK.NAME,
+                   WRK.CODE,
+                   PNZD.Z_YEAR,
+                   PNZD.Z_1YEAR,
+                   PNZD.Z_2YEAR
+              into NPNZD_PRN,
+                   NPNZD_RN,
+                   NTRWRK_RN,
+                   STRWRK_NAME,
+                   STRWRK_CODE,
+                   NZ_YEAR,
+                   NZ_1YEAR,
+                   NZ_2YEAR
+              from FPDPPGZWPNZ  M,
+                   FPDTRWRK     WRK,
+                   FPDPPGZWPNZD PNZD
+             where M.PRN = RREC_SW.GZW_RN
+               and PNZD.PRN = M.RN
+               and M.TRWRK = WRK.RN
+               and CMP_VC2(PNZD.COSTNAME, RPNZD.COSTNAME) = 1
+               and CMP_VC2(PNZD.APPOINTMENT, RPNZD.APPOINTMENT) = 1
+               and CMP_VC2(PNZD.RATIONALE, RPNZD.RATIONALE) = 1;
+          exception
+            when NO_DATA_FOUND then
+              NPNZD_PRN   := null;
+              NPNZD_RN    := null;
+              NTRWRK_RN   := null;
+              STRWRK_NAME := null;
+              STRWRK_CODE := null;
+              NZ_YEAR     := null;
+              NZ_1YEAR    := null;
+              NZ_2YEAR    := null;
+          end;
+
+          insert into CALCTAB_DATA
+            (type, -- TYPE
+             SIGN_A01, -- GZW_NUM
+             REF_A01, -- GZW_RN
+             REF_A02, -- GZW_COMPANY
+             REF_A04, -- PNZ_PRN
+             REF_A05, -- PNZ_RN
+             REF_A06, -- TRWRK_RN
+             REF_A09, --
+             REF_B01, -- ORGD_RN
+             NAME_A03, -- TRWRK_NAME
+             NAME_A04, -- ORGD_NAME
+             NAME_B01, -- D_COSTNAME
+             NAME_B02, -- D_APPOINTMENT
+             NAME_B03, -- D_RATIONALE
+             CODE_A02, -- TRWRK_CODE
+             COEFF_B01, -- D_YEAR
+             COEFF_B02, -- D_1YEAR
+             COEFF_B03 -- D_2YEAR
+             )
+          values
+            (case when RREC_SW.TYPE = 0 then TYPE_SERV_TR_ when RREC_SW.TYPE = 1 then TYPE_WORK_TR_ end,
+             null,
+             RREC_SW.GZW_RN,
+             RREC_SW.GZW_COMPANY,
+             NPNZD_PRN,
+             NPNZD_RN,
+             NTRWRK_RN,
+             GEN_IDENT,
+             RREC_SW.ORGD_RN,
+             STRWRK_NAME,
+             RREC_SW.ORGD_NAME,
+             RPNZD.COSTNAME,
+             RPNZD.APPOINTMENT,
+             RPNZD.RATIONALE,
+             STRWRK_CODE,
+             NZ_YEAR,
+             NZ_1YEAR,
+             NZ_2YEAR);
+
+          if NPNZD_RN is not null then
+            update CALCTAB_DATA
+               set --type = (case when RREC_SW.TYPE = 0 then TYPE_SERV_TR_ when RREC_SW.TYPE = 1 then TYPE_WORK_TR_ end),
+                    REF_A04 = NPNZD_PRN,
+                   REF_A05   = NPNZD_RN,
+                   REF_A06   = NTRWRK_RN,
+                   NAME_A03  = STRWRK_NAME,
+                   CODE_A02  = STRWRK_CODE,
+                   COEFF_B01 = NZ_YEAR,
+                   COEFF_B02 = NZ_1YEAR,
+                   COEFF_B03 = NZ_2YEAR
+             where REF_A01 = RREC_SW.GZW_RN
+               and type = (case
+                     when RREC_SW.TYPE = 0 then
+                      TYPE_SERV_PNZ_
+                     when RREC_SW.TYPE = 1 then
+                      TYPE_WORK_PNZ_
+                   end)
+               and CMP_VC2(NAME_B01, RPNZD.COSTNAME) = 1
+               and CMP_VC2(NAME_B02, RPNZD.APPOINTMENT) = 1
+               and CMP_VC2(NAME_B03, RPNZD.RATIONALE) = 1;
+          end if;
+        end if;
+        --
+        NPNZD_COUNT_ALL := NPNZD_COUNT_ALL + 1;
+      end loop;
+
+      /* Генерация пустых строк
+      если РТ в режиме редактирования */
+      if PRSG_CALCTAB.MODE_EDIT() then
+        for RPNZD in NPNZD_COUNT_ALL + 1 .. ROW_NULL_
+        loop
+          /* Проверка количества территорий по услуге/работе */
+          begin
+            select count(*)
+              into NCOUNT_TR
+              from FPDPPGZWPNZ M,
+                   FPDTRWRK    WRK
+             where M.PRN = RREC_SW.GZW_RN
+               and M.TRWRK = WRK.RN;
+          end;
+
+          if NCOUNT_TR > 1 then
+            NPNZ_PRN_PREV := null;
+            for RREC_PNZ in (select case
+                                      when RREC_SW.TYPE = 0 then
+                                       TYPE_SERV_PNZ_NULL_
+                                      when RREC_SW.TYPE = 1 then
+                                       TYPE_WORK_PNZ_NULL_
+                                    end as type,
+                                    -- работы
+                                    M.RN     as PNZ_PRN,
+                                    null     as PNZ_RN,
+                                    M.TRWRK  as TRWRK_RN,
+                                    WRK.NAME as TRWRK_NAME, -- наименование территории
+                                    WRK.CODE as TRWRK_CODE, -- мнемокод территории
+                                    -- спецификация 1
+                                    M.Z_PNZ_YEAR  as PNZ_YEAR,
+                                    M.Z_PNZ_1YEAR as PNZ_1YEAR,
+                                    M.Z_PNZ_2YEAR as PNZ_2YEAR
+                               from FPDPPGZWPNZ M,
+                                    FPDTRWRK    WRK
+                              where M.PRN = RREC_SW.GZW_RN
+                                and M.TRWRK = WRK.RN
+                              order by M.RN)
+            loop
+              if NPNZ_PRN_PREV is null then
+                /* Детализация ПНЗ */
+                insert into CALCTAB_DATA
+                  (type, -- TYPE
+                   SIGN_A01, -- GZW_NUM
+                   REF_A01, -- GZW_RN
+                   REF_A02, -- GZW_COMPANY
+                   REF_A04, -- PNZ_PRN
+                   REF_A05, -- PNZ_RN
+                   REF_A06, -- TRWRK_RN
+                   REF_A09, --
+                   REF_A10, --
+                   REF_B01, -- ORGD_RN
+                   NAME_A04, -- ORGD_NAME
+                   NAME_B01, -- D_COSTNAME
+                   NAME_B02, -- D_APPOINTMENT
+                   NAME_B03, -- D_RATIONALE
+                   COEFF_B01, -- D_YEAR
+                   COEFF_B02, -- D_1YEAR
+                   COEFF_B03 -- D_2YEAR
+                   )
+                values
+                  (case when RREC_SW.TYPE = 0 then TYPE_SERV_PNZ_NULL_ when RREC_SW.TYPE = 1 then TYPE_WORK_PNZ_NULL_ end, -- TYPE
+                   null, -- SIGN_A01
+                   RREC_SW.GZW_RN, -- REF_A01
+                   RREC_SW.GZW_COMPANY, -- REF_A02
+                   RREC_PNZ.PNZ_PRN, -- REF_A04
+                   null, --rREC_PNZ.TRWRK_RN, -- REF_A05
+                   null, -- REF_A06
+                   GEN_IDENT, -- REF_A09
+                   RPNZD, -- REF_A10
+                   RREC_SW.ORGD_RN, -- REF_B01
+                   RREC_SW.ORGD_NAME, -- NAME_A04
+                   null, -- NAME_B01
+                   null, -- NAME_B02
+                   null, -- NAME_B03
+                   0, -- COEFF_B01
+                   0, -- COEFF_B02
+                   0 -- COEFF_B03
+                   );
+              end if;
+
+              /* Строка территории */
+              insert into CALCTAB_DATA
+                (type, -- TYPE
+                 SIGN_A01, -- GZW_NUM
+                 REF_A01, -- GZW_RN
+                 REF_A02, -- GZW_COMPANY
+                 REF_A04, -- PNZ_PRN
+                 REF_A05, -- PNZ_RN
+                 REF_A06, -- TRWRK_RN
+                 REF_A09, --
+                 REF_A10, --
+                 REF_B01, -- ORGD_RN
+                 NAME_A03, -- TRWRK_NAME
+                 NAME_A04, -- ORGD_NAME
+                 CODE_A02, -- TRWRK_CODE
+                 COEFF_B01, -- D_YEAR
+                 COEFF_B02, -- D_1YEAR
+                 COEFF_B03 -- D_2YEAR
+                 )
+              values
+                (case when RREC_SW.TYPE = 0 then TYPE_SERV_TR_NULL_ when RREC_SW.TYPE = 1 then TYPE_WORK_TR_NULL_ end, -- TYPE
+                 null, -- SIGN_A01
+                 RREC_SW.GZW_RN, -- REF_A01
+                 RREC_SW.GZW_COMPANY, -- REF_A02
+                 RREC_PNZ.PNZ_PRN, -- REF_A04
+                 RREC_PNZ.PNZ_RN, -- REF_A05
+                 RREC_PNZ.TRWRK_RN, -- REF_A06
+                 GEN_IDENT, -- REF_A09
+                 RPNZD, -- REF_A10
+                 RREC_SW.ORGD_RN, -- REF_B01
+                 RREC_PNZ.TRWRK_NAME, -- NAME_A03
+                 RREC_SW.ORGD_NAME, -- NAME_A04
+                 RREC_PNZ.TRWRK_CODE, -- CODE_A02
+                 0, -- COEFF_B01
+                 0, -- COEFF_B02
+                 0 -- COEFF_B03
+                 );
+
+              NPNZ_PRN_PREV := RREC_PNZ.PNZ_PRN;
+            end loop;
+          else
+            /* Если одна территория - найдем её рн, код и наименование */
+            begin
+              select M.RN,
+                     WRK.RN,
+                     WRK.CODE,
+                     WRK.NAME
+                into NPNZ_PRN,
+                     NTRWRK_RN,
+                     STRWRK_CODE,
+                     STRWRK_NAME
+                from FPDPPGZWPNZ M,
+                     FPDTRWRK    WRK
+               where M.PRN = RREC_SW.GZW_RN
+                 and M.TRWRK = WRK.RN;
+            exception
+              when NO_DATA_FOUND then
+                NTRWRK_RN   := null;
+                STRWRK_CODE := null;
+                STRWRK_NAME := null;
+            end;
+            /* Детализация ПНЗ */
+            insert into CALCTAB_DATA
+              (type, -- TYPE
+               SIGN_A01, -- GZW_NUM
+               REF_A01, -- GZW_RN
+               REF_A02, -- GZW_COMPANY
+               REF_A04, -- PNZ_PRN
+               REF_A05, -- PNZ_RN
+               REF_A06, -- TRWRK_RN
+               REF_A09, --
+               REF_A10, --
+               REF_B01, -- ORGD_RN
+               NAME_A03, --
+               NAME_A04, -- ORGD_NAME
+               NAME_B01, -- D_COSTNAME
+               NAME_B02, -- D_APPOINTMENT
+               NAME_B03, -- D_RATIONALE
+               CODE_A02, --
+               COEFF_B01, -- D_YEAR
+               COEFF_B02, -- D_1YEAR
+               COEFF_B03 -- D_2YEAR
+               )
+            values
+              (case when RREC_SW.TYPE = 0 then TYPE_SERV_PNZ_NULL_ when RREC_SW.TYPE = 1 then TYPE_WORK_PNZ_NULL_ end, -- TYPE
+               null, -- SIGN_A01
+               RREC_SW.GZW_RN, -- REF_A01
+               RREC_SW.GZW_COMPANY, -- REF_A02
+               NPNZ_PRN, -- REF_A04
+               null, -- REF_A05
+               NTRWRK_RN, -- REF_A06
+               GEN_IDENT, -- REF_A09
+               RPNZD, -- REF_A10
+               RREC_SW.ORGD_RN, -- REF_B01
+               STRWRK_NAME, -- NAME_A03
+               RREC_SW.ORGD_NAME, -- NAME_A04
+               null, -- NAME_B01
+               null, -- NAME_B02
+               null, -- NAME_B03
+               STRWRK_CODE, -- CODE_A02
+               0, -- COEFF_B01
+               0, -- COEFF_B02
+               0 -- COEFF_B03
+               );
+          end if;
+        end loop;
+      end if;
+      NPNZD_COUNT_ALL := 0;
+
+      NGZW_RN_PREV := RREC_SW.GZW_RN;
+    end loop;
+
+    /* проверка наличия данных */
+    select count(*) into NEXISTS from DUAL where exists (select null from CALCTAB_DATA);
+    --
+    if (NEXISTS = 0) then
+      P_EXCEPTION(0, 'Нет данных для просмотра/редактирования.');
+    end if;
+
+    /* группировка "Период" */
+    GROUPING_PERIOD(TYPE_SERV_, TYPE_PER_);
+    GROUPING_PERIOD(TYPE_WORK_, TYPE_PER_);
+  end DO_INIT;
+
+  /* запись заголовка таблицы */
+  procedure DO_CONTEXT_TABLE_CAPTION(NTYPE in number) as
+    SSTR PKG_STD.TSTRING;
+  begin
+    for DATA_ in (select CODE_B01 as ORG_NAME from CALCTAB_DATA where type = NTYPE)
+    loop
+      SSTR := 'Расчет затрат ' || DATA_.ORG_NAME ||
+              ' на прочие общехозяйственные нужды необходимые для выполнения работы';
+
+      /* запись заголовка таблицы */
+      PRSG_CALCTAB_BUILD.WRITE_TABLE_CAPTION(STEXT => SSTR);
+    end loop;
+  end DO_CONTEXT_TABLE_CAPTION;
+
+  /*определение количества экземпляров заголовка строк "СтрокаУслуги" */
+  procedure DO_ROW_COPIES_SERV as
+    BRUN boolean := true;
+  begin
+    /* услуги */
+    for DATA_ in (select REF_A01 as GZW_RN
+                    from CALCTAB_DATA
+                   where type = TYPE_SERV_
+                   order by SIGN_A01,
+                            REF_A01)
+    loop
+
+      BRUN := false;
+
+      /* Итоговая строка по услуге */
+      PRSG_CALCTAB_BUILD.APPEND_ROW_COPY(NSOURCE => DATA_.GZW_RN);
+
+    end loop;
+
+    -- добавление пустого экземпляра строки
+    if BRUN then
+      PRSG_CALCTAB_BUILD.APPEND_ROW_COPY(NSOURCE => 0, NHEIGHT => 0);
+    end if;
+  end DO_ROW_COPIES_SERV;
+
+  /*определение количества экземпляров заголовка строк "СтрокаУслугиИтог" */
+  procedure DO_ROW_COPIES_SERV_IT as
+    BRUN      boolean := true;
+    RROW_SERV PRSG_CALCTAB.TCAPTION;
+  begin
+
+    PRSG_CALCTAB_BUILD.PARENT_ROW_CAPTION(RCAPTION => RROW_SERV);
+    /* услуги */
+    for DATA_ in (select REF_A01 as GZW_RN
+                    from CALCTAB_DATA
+                   where type = TYPE_SERV_
+                     and REF_A01 = RROW_SERV.SOURCE
+                   order by SIGN_A01,
+                            REF_A01)
+    loop
+      BRUN := false;
+
+      /* Итоговая строка по услуге */
+      PRSG_CALCTAB_BUILD.APPEND_ROW_COPY(NSOURCE => DATA_.GZW_RN);
+
+    end loop;
+
+    -- добавление пустого экземпляра строки
+    if BRUN then
+      PRSG_CALCTAB_BUILD.APPEND_ROW_COPY(NSOURCE => 0, NHEIGHT => 0);
+    end if;
+  end DO_ROW_COPIES_SERV_IT;
+
+  /*определение количества экземпляров заголовка строк "СтрокаУслугиПНЗ" */
+  procedure DO_ROW_COPIES_SERV_PNZ as
+    BRUN       boolean := true;
+    NPNZD_RN   PKG_STD.TREF;
+    NGEN_IDENT PKG_STD.TREF;
+    RROW_SERV  PRSG_CALCTAB.TCAPTION;
+  begin
+    PRSG_CALCTAB_BUILD.PARENT_ROW_CAPTION(RCAPTION => RROW_SERV);
+
+    /* услуги */
+    for DATA_ in (select REF_A01  as GZW_RN,
+                         NAME_B01 as COSTNAME,
+                         NAME_B02 as APPOINTMENT,
+                         NAME_B03 as RATIONALE
+                    from CALCTAB_DATA
+                   where type = TYPE_SERV_PNZ_
+                     and REF_A01 = RROW_SERV.SOURCE
+                   group by REF_A01,
+                            NAME_B01,
+                            NAME_B02,
+                            NAME_B03
+                   order by REF_A01,
+                            NAME_B01,
+                            NAME_B02,
+                            NAME_B03)
+    loop
+      BRUN := false;
+
+      /* узнаём рн детализации
+      если для группы их несколько - берём первую встречную */
+      begin
+        select REF_A05
+          into NPNZD_RN
+          from CALCTAB_DATA
+         where type = TYPE_SERV_PNZ_
+           and REF_A01 = DATA_.GZW_RN
+           and NAME_B01 = DATA_.COSTNAME
+           and NAME_B02 = DATA_.APPOINTMENT
+           and NAME_B03 = DATA_.RATIONALE
+           and ROWNUM = 1;
+      exception
+        when NO_DATA_FOUND then
+          NPNZD_RN := null;
+      end;
+
+      if NPNZD_RN is null then
+        NGEN_IDENT := GEN_IDENT;
+
+        update CALCTAB_DATA
+           set REF_A09 = NGEN_IDENT
+         where type = TYPE_SERV_PNZ_
+           and REF_A01 = DATA_.GZW_RN
+           and NAME_B01 = DATA_.COSTNAME
+           and NAME_B02 = DATA_.APPOINTMENT
+           and NAME_B03 = DATA_.RATIONALE;
+      end if;
+      PRSG_CALCTAB_BUILD.APPEND_ROW_COPY(NSOURCE => COALESCE(NPNZD_RN, NGEN_IDENT));
+    end loop;
+
+    -- добавление пустого экземпляра строки
+    if BRUN then
+      PRSG_CALCTAB_BUILD.APPEND_ROW_COPY(NSOURCE => 0, NHEIGHT => 0);
+    end if;
+  end DO_ROW_COPIES_SERV_PNZ;
+
+  /*определение количества экземпляров заголовка строк "СтрокаУслугиПНЗИтог" */
+  procedure DO_ROW_COPIES_SERV_PNZ_IT as
+    BRUN      boolean := true;
+    RROW_SERV PRSG_CALCTAB.TCAPTION;
+  begin
+    PRSG_CALCTAB_BUILD.PARENT_ROW_CAPTION(RCAPTION => RROW_SERV);
+
+    -- добавление пустого экземпляра строки
+    if BRUN then
+      PRSG_CALCTAB_BUILD.APPEND_ROW_COPY(NSOURCE => 0);
+    end if;
+  end DO_ROW_COPIES_SERV_PNZ_IT;
+
+  /*определение количества экземпляров заголовка строк "СтрокаУслугиТер" */
+  procedure DO_ROW_COPIES_SERV_TR as
+    BRUN        boolean := true;
+    NPNZD_COUNT integer;
+    RROW_SERV   PRSG_CALCTAB.TCAPTION;
+    NGZW_RN     PKG_STD.TREF;
+    NPNZ_PRN    PKG_STD.TREF;
+
+    SCOSTNAME    PKG_STD.TSTRING;
+    SAPPOINTMENT PKG_STD.TSTRING;
+    SRATIONALE   PKG_STD.TSTRING;
+  begin
+    PRSG_CALCTAB_BUILD.PARENT_ROW_CAPTION(RCAPTION => RROW_SERV);
+
+    begin
+      select REF_A01,
+             REF_A04 as PNZ_PRN,
+             NAME_B01,
+             NAME_B02,
+             NAME_B03
+        into NGZW_RN,
+             NPNZ_PRN,
+             SCOSTNAME,
+             SAPPOINTMENT,
+             SRATIONALE
+        from CALCTAB_DATA
+       where type = TYPE_SERV_PNZ_
+         and (REF_A05 = RROW_SERV.SOURCE or REF_A09 = RROW_SERV.SOURCE);
+    exception
+      when NO_DATA_FOUND then
+        NGZW_RN := null;
+    end;
+
+    /* Узнаём кол-во территорий */
+    begin
+      select count(*)
+        into NPNZD_COUNT
+        from (select REF_A01
+                from CALCTAB_DATA
+               where type = TYPE_SERV_TR_
+                 and REF_A01 = NGZW_RN
+                    --and REF_A04 = NPNZ_PRN
+                 and CMP_VC2(NAME_B01, SCOSTNAME) = 1
+                 and CMP_VC2(NAME_B02, SAPPOINTMENT) = 1
+                 and CMP_VC2(NAME_B03, SRATIONALE) = 1
+               group by REF_A01,
+                        REF_A04,
+                        REF_A06);
+    end;
+
+    if NPNZD_COUNT > 1 then
+      for DATA_PNZ_ in (select REF_A09 as IDENT --REF_A04 as PNZ_PRN, REF_A05 as PNZ_RN, CODE_A02 as TRWRK_CODE
+                          from CALCTAB_DATA
+                         where type = TYPE_SERV_TR_
+                           and REF_A01 = NGZW_RN
+                              --and REF_A04 = NPNZ_PRN
+                           and CMP_VC2(NAME_B01, SCOSTNAME) = 1
+                           and CMP_VC2(NAME_B02, SAPPOINTMENT) = 1
+                           and CMP_VC2(NAME_B03, SRATIONALE) = 1
+                         order by CODE_A02 asc)
+      loop
+        BRUN := false;
+
+        PRSG_CALCTAB_BUILD.APPEND_ROW_COPY(NSOURCE => DATA_PNZ_.IDENT, NHEIGHT => 15);
+      end loop;
+    end if;
+
+    -- добавление пустого экземпляра строки
+    if BRUN then
+      PRSG_CALCTAB_BUILD.APPEND_ROW_COPY(NSOURCE => 0, NHEIGHT => 0);
+    end if;
+  end DO_ROW_COPIES_SERV_TR;
+
+  /*определение количества экземпляров заголовка строк "СтрокаУслугиПНЗ_Пустая" */
+  procedure DO_ROW_COPIES_SERV_PNZ_NULL as
+    BRUN      boolean := true;
+    RROW_SERV PRSG_CALCTAB.TCAPTION;
+  begin
+    PRSG_CALCTAB_BUILD.PARENT_ROW_CAPTION(RCAPTION => RROW_SERV);
+
+    if PRSG_CALCTAB.MODE_EDIT() then
+      /* услуги */
+      for DATA_DET_ in (select REF_A01 as GZW_RN,
+                               REF_A09 as IDENT,
+                               REF_A10 as I
+                          from CALCTAB_DATA
+                         where type = TYPE_SERV_PNZ_NULL_
+                           and REF_A01 = RROW_SERV.SOURCE
+                         order by REF_A01,
+                                  NAME_B01,
+                                  NAME_B02,
+                                  NAME_B03)
+      loop
+        BRUN := false;
+
+        PRSG_CALCTAB_BUILD.APPEND_ROW_COPY(NSOURCE => DATA_DET_.IDENT, NHEIGHT => 15);
+      end loop;
+    end if;
+
+    -- добавление пустого экземпляра строки
+    if BRUN then
+      PRSG_CALCTAB_BUILD.APPEND_ROW_COPY(NSOURCE => 0, NHEIGHT => 0);
+    end if;
+  end DO_ROW_COPIES_SERV_PNZ_NULL;
+
+  /*определение количества экземпляров заголовка строк "СтрокаУслугиПНЗИтог_Пустая" */
+  procedure DO_ROW_COPIES_SERV_PNZ_IT_NULL as
+    BRUN      boolean := true;
+    RROW_SERV PRSG_CALCTAB.TCAPTION;
+  begin
+    PRSG_CALCTAB_BUILD.PARENT_ROW_CAPTION(RCAPTION => RROW_SERV);
+
+    -- добавление пустого экземпляра строки
+    if BRUN then
+      PRSG_CALCTAB_BUILD.APPEND_ROW_COPY(NSOURCE => 0, NHEIGHT => 0);
+    end if;
+  end DO_ROW_COPIES_SERV_PNZ_IT_NULL;
+
+  /*определение количества экземпляров заголовка строк "СтрокаУслугиТер_Пустая" */
+  procedure DO_ROW_COPIES_SERV_TR_NULL as
+    BRUN        boolean := true;
+    NPNZD_COUNT integer;
+    NGZW_RN     PKG_STD.TREF;
+    RROW_SERV   PRSG_CALCTAB.TCAPTION;
+  begin
+    PRSG_CALCTAB_BUILD.PARENT_ROW_CAPTION(RCAPTION => RROW_SERV);
+
+    begin
+      select REF_A01
+        into NGZW_RN
+        from CALCTAB_DATA
+       where type = TYPE_SERV_PNZ_NULL_
+         and (REF_A05 = RROW_SERV.SOURCE or REF_A09 = RROW_SERV.SOURCE);
+    exception
+      when NO_DATA_FOUND then
+        NGZW_RN := null;
+    end;
+
+    /* Узнаём кол-во территорий */
+    begin
+      select count(*)
+        into NPNZD_COUNT
+        from (select REF_A01
+                from CALCTAB_DATA
+               where type = TYPE_SERV_TR_NULL_
+                 and REF_A01 = NGZW_RN
+               group by REF_A01,
+                        REF_A04,
+                        REF_A06);
+    end;
+
+    if PRSG_CALCTAB.MODE_EDIT() then
+      if NPNZD_COUNT > 1 then
+        for DATA_PNZ_ in (select REF_A09 as IDENT
+                            from CALCTAB_DATA
+                           where type = TYPE_SERV_TR_NULL_
+                             and REF_A01 = NGZW_RN
+                             and REF_A10 = (select REF_A10
+                                              from CALCTAB_DATA
+                                             where type = TYPE_SERV_PNZ_NULL_
+                                               and (REF_A05 = RROW_SERV.SOURCE or REF_A09 = RROW_SERV.SOURCE)))
+        loop
+          BRUN := false;
+
+          PRSG_CALCTAB_BUILD.APPEND_ROW_COPY(NSOURCE => DATA_PNZ_.IDENT, NHEIGHT => 15);
+        end loop;
+      end if;
+    end if;
+
+    -- добавление пустого экземпляра строки
+    if BRUN then
+      PRSG_CALCTAB_BUILD.APPEND_ROW_COPY(NSOURCE => 0, NHEIGHT => 0);
+    end if;
+  end DO_ROW_COPIES_SERV_TR_NULL;
+
+  /*определение количества экземпляров заголовка строк "СтрокаУслуги" */
+  procedure DO_ROW_COPIES_WORK as
+    BRUN   boolean := true;
+    NCOUNT integer := 0;
+  begin
+
+    /* Работы */
+    for DATA_ in (select REF_A01 as GZW_RN,
+                         REF_B01 as ORGD_RN
+                    from CALCTAB_DATA
+                   where type in (TYPE_WORK_, TYPE_WORK_DET_)
+                   order by SIGN_A01,
+                            REF_A01,
+                            REF_B01 nulls first)
+    loop
+      BRUN   := false;
+      NCOUNT := NCOUNT + 1;
+      if DATA_.ORGD_RN is null then
+        /* Итоговая строка по работе */
+        PRSG_CALCTAB_BUILD.APPEND_ROW_COPY(NSOURCE => DATA_.GZW_RN);
+      else
+        /* Итоговая строка по детализации работы */
+        PRSG_CALCTAB_BUILD.APPEND_ROW_COPY(NSOURCE => DATA_.ORGD_RN, NHEIGHT => 15);
+      end if;
+    end loop;
+
+    -- добавление пустого экземпляра строки
+    if BRUN then
+      PRSG_CALCTAB_BUILD.APPEND_ROW_COPY(NSOURCE => 0, NHEIGHT => 0);
+    end if;
+  end DO_ROW_COPIES_WORK;
+
+  /*определение количества экземпляров заголовка строк "СтрокаУслугиИтог" */
+  procedure DO_ROW_COPIES_WORK_IT as
+    BRUN      boolean := true;
+    RROW_WORK PRSG_CALCTAB.TCAPTION;
+  begin
+
+    PRSG_CALCTAB_BUILD.PARENT_ROW_CAPTION(RCAPTION => RROW_WORK);
+    /* работы */
+    for DATA_ in (select REF_A01 as GZW_RN,
+                         REF_B01 as ORGD_RN
+                    from CALCTAB_DATA
+                   where type = TYPE_WORK_
+                     and REF_A01 = RROW_WORK.SOURCE
+                   order by SIGN_A01)
+    loop
+      BRUN := false;
+
+      /* Итоговая строка по работе */
+      PRSG_CALCTAB_BUILD.APPEND_ROW_COPY(NSOURCE => DATA_.GZW_RN);
+
+    end loop;
+
+    -- добавление пустого экземпляра строки
+    if BRUN then
+      PRSG_CALCTAB_BUILD.APPEND_ROW_COPY(NSOURCE => 0, NHEIGHT => 0);
+    end if;
+  end DO_ROW_COPIES_WORK_IT;
+
+  procedure DO_ROW_COPIES_WORK_PNZ as
+    BRUN       boolean := true;
+    NPNZD_RN   PKG_STD.TREF;
+    NGEN_IDENT PKG_STD.TREF;
+    RROW_WORK  PRSG_CALCTAB.TCAPTION;
+  begin
+    PRSG_CALCTAB_BUILD.PARENT_ROW_CAPTION(RCAPTION => RROW_WORK);
+
+    /* работы */
+    for DATA_ in (select REF_A01  as GZW_RN,
+                         NAME_B01 as COSTNAME,
+                         NAME_B02 as APPOINTMENT,
+                         NAME_B03 as RATIONALE
+                    from CALCTAB_DATA
+                   where type = TYPE_WORK_PNZ_
+                     and ((REF_B01 is null and REF_A01 = RROW_WORK.SOURCE) or
+                         (REF_B01 is not null and REF_B01 = RROW_WORK.SOURCE))
+                   group by REF_A01,
+                            NAME_B01,
+                            NAME_B02,
+                            NAME_B03
+                   order by REF_A01,
+                            NAME_B01,
+                            NAME_B02,
+                            NAME_B03)
+    loop
+      BRUN := false;
+
+      /* узнаём рн детализации ПНЗ
+      если для группы их несколько - берём первую встречную */
+      begin
+        select REF_A05
+          into NPNZD_RN
+          from CALCTAB_DATA
+         where type = TYPE_WORK_PNZ_
+           and REF_A01 = DATA_.GZW_RN
+           and NAME_B01 = DATA_.COSTNAME
+           and NAME_B02 = DATA_.APPOINTMENT
+           and NAME_B03 = DATA_.RATIONALE
+           and ROWNUM = 1;
+      exception
+        when NO_DATA_FOUND then
+          NPNZD_RN := null;
+      end;
+
+      if NPNZD_RN is null then
+        NGEN_IDENT := GEN_IDENT;
+
+        update CALCTAB_DATA
+           set REF_A09 = NGEN_IDENT
+         where type = TYPE_WORK_PNZ_
+           and REF_A01 = DATA_.GZW_RN
+           and NAME_B01 = DATA_.COSTNAME
+           and NAME_B02 = DATA_.APPOINTMENT
+           and NAME_B03 = DATA_.RATIONALE;
+      end if;
+      PRSG_CALCTAB_BUILD.APPEND_ROW_COPY(NSOURCE => COALESCE(NPNZD_RN, NGEN_IDENT), NHEIGHT => 15);
+    end loop;
+
+    -- добавление пустого экземпляра строки
+    if BRUN then
+      PRSG_CALCTAB_BUILD.APPEND_ROW_COPY(NSOURCE => 0, NHEIGHT => 0);
+    end if;
+  end;
+
+  procedure DO_ROW_COPIES_WORK_PNZ_IT as
+    BRUN      boolean := true;
+    RROW_WORK PRSG_CALCTAB.TCAPTION;
+  begin
+    PRSG_CALCTAB_BUILD.PARENT_ROW_CAPTION(RCAPTION => RROW_WORK);
+
+    -- добавление пустого экземпляра строки
+    if BRUN then
+      PRSG_CALCTAB_BUILD.APPEND_ROW_COPY(NSOURCE => 0, NHEIGHT => 0);
+    end if;
+  end;
+
+  procedure DO_ROW_COPIES_WORK_TR as
+    BRUN        boolean := true;
+    NPNZD_COUNT integer;
+    RROW_WORK   PRSG_CALCTAB.TCAPTION;
+    NGZW_RN     PKG_STD.TREF;
+    NORGD_RN    PKG_STD.TREF;
+    NPNZ_PRN    PKG_STD.TREF;
+
+    SCOSTNAME    PKG_STD.TSTRING;
+    SAPPOINTMENT PKG_STD.TSTRING;
+    SRATIONALE   PKG_STD.TSTRING;
+  begin
+    PRSG_CALCTAB_BUILD.PARENT_ROW_CAPTION(RCAPTION => RROW_WORK);
+
+    begin
+      select REF_A01,
+             REF_B01,
+             REF_A04 as PNZ_PRN,
+             NAME_B01,
+             NAME_B02,
+             NAME_B03
+        into NGZW_RN,
+             NORGD_RN,
+             NPNZ_PRN,
+             SCOSTNAME,
+             SAPPOINTMENT,
+             SRATIONALE
+        from CALCTAB_DATA
+       where type = TYPE_WORK_PNZ_
+         and (REF_A05 = RROW_WORK.SOURCE or REF_A09 = RROW_WORK.SOURCE);
+    exception
+      when NO_DATA_FOUND then
+        NGZW_RN := null;
+    end;
+
+    /* Узнаём кол-во территорий */
+    begin
+      select count(*)
+        into NPNZD_COUNT
+        from (select REF_A01
+                from CALCTAB_DATA
+               where type = TYPE_WORK_TR_
+                 and REF_A01 = NGZW_RN
+                 and CMP_NUM(REF_B01, NORGD_RN) = 1
+                 and CMP_VC2(NAME_B01, SCOSTNAME) = 1
+                 and CMP_VC2(NAME_B02, SAPPOINTMENT) = 1
+                 and CMP_VC2(NAME_B03, SRATIONALE) = 1
+              --and REF_A04 = NPNZ_PRN
+               group by REF_A01,
+                        REF_A04,
+                        REF_A06);
+    end;
+    -- p_exception(0, NPNZD_COUNT);
+    if NPNZD_COUNT > 1 then
+      for DATA_PNZ_ in (select REF_A09 as IDENT,
+                               REF_A04 as PNZ_PRN,
+                               REF_A06 as TRWRK_RN
+                          from CALCTAB_DATA
+                         where type = TYPE_WORK_TR_
+                           and REF_A01 = NGZW_RN
+                           and CMP_NUM(REF_B01, NORGD_RN) = 1
+                           and CMP_VC2(NAME_B01, SCOSTNAME) = 1
+                           and CMP_VC2(NAME_B02, SAPPOINTMENT) = 1
+                           and CMP_VC2(NAME_B03, SRATIONALE) = 1
+                        --and REF_A04 = NPNZ_PRN
+                         order by CODE_A02 asc)
+      loop
+        BRUN := false;
+        PRSG_CALCTAB_BUILD.APPEND_ROW_COPY(NSOURCE => DATA_PNZ_.IDENT, NHEIGHT => 15);
+      end loop;
+    end if;
+
+    -- добавление пустого экземпляра строки
+    if BRUN then
+      PRSG_CALCTAB_BUILD.APPEND_ROW_COPY(NSOURCE => 0, NHEIGHT => 0);
+    end if;
+  end;
+
+  procedure DO_ROW_COPIES_WORK_PNZ_NULL as
+    BRUN      boolean := true;
+    RROW_WORK PRSG_CALCTAB.TCAPTION;
+  begin
+    PRSG_CALCTAB_BUILD.PARENT_ROW_CAPTION(RCAPTION => RROW_WORK);
+    if PRSG_CALCTAB.MODE_EDIT() then
+      /* работы */
+      for DATA_DET_ in (select REF_A01 as GZW_RN,
+                               REF_A09 as IDENT,
+                               REF_A10 as I,
+                               REF_B01 as ORGD_RN
+                          from CALCTAB_DATA
+                         where type = TYPE_WORK_PNZ_NULL_
+                           and ((REF_B01 is null and REF_A01 = RROW_WORK.SOURCE) or
+                               (REF_B01 is not null and REF_B01 = RROW_WORK.SOURCE))
+                         order by REF_A01,
+                                  NAME_B01,
+                                  NAME_B02,
+                                  NAME_B03)
+      loop
+        BRUN := false;
+
+        PRSG_CALCTAB_BUILD.APPEND_ROW_COPY(NSOURCE => DATA_DET_.IDENT, NHEIGHT => 15);
+      end loop;
+    end if;
+
+    -- добавление пустого экземпляра строки
+    if BRUN then
+      PRSG_CALCTAB_BUILD.APPEND_ROW_COPY(NSOURCE => 0, NHEIGHT => 0);
+    end if;
+  end DO_ROW_COPIES_WORK_PNZ_NULL;
+
+  procedure DO_ROW_COPIES_WORK_PNZ_IT_NULL as
+    BRUN      boolean := true;
+    RROW_WORK PRSG_CALCTAB.TCAPTION;
+  begin
+    PRSG_CALCTAB_BUILD.PARENT_ROW_CAPTION(RCAPTION => RROW_WORK);
+
+    -- добавление пустого экземпляра строки
+    if BRUN then
+      PRSG_CALCTAB_BUILD.APPEND_ROW_COPY(NSOURCE => 0, NHEIGHT => 0);
+    end if;
+  end;
+
+  procedure DO_ROW_COPIES_WORK_TR_NULL as
+    BRUN        boolean := true;
+    NPNZD_COUNT integer;
+    NGZW_RN     PKG_STD.TREF;
+    NORGD_RN    PKG_STD.TREF;
+    RROW_WORK   PRSG_CALCTAB.TCAPTION;
+  begin
+    PRSG_CALCTAB_BUILD.PARENT_ROW_CAPTION(RCAPTION => RROW_WORK);
+
+    begin
+      select REF_A01,
+             REF_B01
+        into NGZW_RN,
+             NORGD_RN
+        from CALCTAB_DATA
+       where type = TYPE_WORK_PNZ_NULL_
+         and (REF_A05 = RROW_WORK.SOURCE or REF_A09 = RROW_WORK.SOURCE);
+    exception
+      when NO_DATA_FOUND then
+        NGZW_RN := null;
+    end;
+
+    /* Узнаём кол-во территорий */
+    begin
+      select count(*)
+        into NPNZD_COUNT
+        from (select REF_A01
+                from CALCTAB_DATA
+               where type = TYPE_WORK_TR_NULL_
+                 and REF_A01 = NGZW_RN
+                 and CMP_NUM(REF_B01, NORGD_RN) = 1
+               group by REF_A01,
+                        REF_A04,
+                        REF_A06);
+    end;
+
+    if PRSG_CALCTAB.MODE_EDIT() then
+      if NPNZD_COUNT > 1 then
+        for DATA_PNZ_ in (select REF_A09 as IDENT
+                            from CALCTAB_DATA
+                           where type = TYPE_WORK_TR_NULL_
+                             and REF_A01 = NGZW_RN
+                             and REF_A10 = (select REF_A10
+                                              from CALCTAB_DATA
+                                             where type = TYPE_WORK_PNZ_NULL_
+                                               and (REF_A05 = RROW_WORK.SOURCE or REF_A09 = RROW_WORK.SOURCE)))
+        loop
+          BRUN := false;
+
+          PRSG_CALCTAB_BUILD.APPEND_ROW_COPY(NSOURCE => DATA_PNZ_.IDENT);
+        end loop;
+      end if;
+    end if;
+
+    -- добавление пустого экземпляра строки
+    if BRUN then
+      PRSG_CALCTAB_BUILD.APPEND_ROW_COPY(NSOURCE => 0, NHEIGHT => 0);
+    end if;
+  end;
+
+  /* Процедура получения формулы для итоговых строк по работам с детализацией */
+  procedure GET_FORMULA_WRK_OGRD_0
+  (
+    TCONT    in PKG_CONTVALLOC.TCONTAINER,
+    NCOL     in numeric,
+    SFORMULA out varchar2
+  ) as
+  begin
+    for I in 1 .. PKG_CONTVALLOC.COUNT_(TCONT)
+    loop
+      if PKG_CONTVALLOC.COUNT_(TCONT) = 1 then
+        SFORMULA := 'СУММ(' || PRSG_CALCTAB_IMAGE.ADDRESS(NCOL, PKG_CONTVALLOC.GETN(TCONT, I)) || ')';
+      else
+        if SFORMULA is null then
+          SFORMULA := 'СУММ(' || PRSG_CALCTAB_IMAGE.ADDRESS(NCOL, PKG_CONTVALLOC.GETN(TCONT, I));
+        else
+          SFORMULA := SFORMULA || ';' || PRSG_CALCTAB_IMAGE.ADDRESS(NCOL, PKG_CONTVALLOC.GETN(TCONT, I));
+          if I = PKG_CONTVALLOC.COUNT_(TCONT) then
+            SFORMULA := SFORMULA || ')';
+          end if;
+        end if;
+      end if;
+    end loop;
+  end GET_FORMULA_WRK_OGRD_0;
+
+  /*процедура вывода записей строки "СтрокаВсего"*/
+  procedure DO_BEFORE_ALL(BPROTECT_TR in boolean) as
+
+    STEXT       PKG_STD.TSTRING;
+    SATTRIBUTE1 PKG_STD.TSTRING; -- доп. атрибуты 1 группы (колонки 1-4)
+
+    SFORMULA PKG_STD.TSTRING; -- формула
+    BTRUE    boolean := true;
+    --bFALSE            boolean := false;
+  begin
+
+    SATTRIBUTE1 := 'Font.Name=Calibri;Interior.ColorIndex=50;VerticalAlignment=xlVAlignTop;HorizontalAlignment=xlHAlignCenter;Border(Around).LineStyle=xlContinuous';
+
+    STEXT := 'Всего:';
+    PRSG_CALCTAB_IMAGE.WRITE_STR(NCOLUMN_ID => PRSG_CALCTAB_IMAGE.COLUMN_ID(COLUMN_PP_),
+                                 NROW_ID    => PRSG_CALCTAB_IMAGE.ROW_ID(ROW_ALL_),
+                                 SVALUE     => STEXT,
+                                 BPROTECT   => BTRUE,
+                                 SATTRIBUTE => SATTRIBUTE1);
+
+    PRSG_CALCTAB_IMAGE.WRITE_STR(NCOLUMN_ID => PRSG_CALCTAB_IMAGE.COLUMN_ID(COLUMN_WORKNAME_),
+                                 NROW_ID    => PRSG_CALCTAB_IMAGE.ROW_ID(ROW_ALL_),
+                                 SVALUE     => 'X',
+                                 BPROTECT   => BTRUE,
+                                 SATTRIBUTE => SATTRIBUTE1);
+
+    PRSG_CALCTAB_IMAGE.WRITE_STR(NCOLUMN_ID => PRSG_CALCTAB_IMAGE.COLUMN_ID(COLUMN_COSTNAME_),
+                                 NROW_ID    => PRSG_CALCTAB_IMAGE.ROW_ID(ROW_ALL_),
+                                 SVALUE     => 'X',
+                                 BPROTECT   => BTRUE,
+                                 SATTRIBUTE => SATTRIBUTE1);
+
+    PRSG_CALCTAB_IMAGE.WRITE_STR(NCOLUMN_ID => PRSG_CALCTAB_IMAGE.COLUMN_ID(COLUMN_APPOINTMENT_),
+                                 NROW_ID    => PRSG_CALCTAB_IMAGE.ROW_ID(ROW_ALL_),
+                                 SVALUE     => 'X',
+                                 BPROTECT   => BTRUE,
+                                 SATTRIBUTE => SATTRIBUTE1);
+
+    PRSG_CALCTAB_IMAGE.WRITE_STR(NCOLUMN_ID => PRSG_CALCTAB_IMAGE.COLUMN_ID(COLUMN_RATIONALE_),
+                                 NROW_ID    => PRSG_CALCTAB_IMAGE.ROW_ID(ROW_ALL_),
+                                 SVALUE     => 'X',
+                                 BPROTECT   => BTRUE,
+                                 SATTRIBUTE => SATTRIBUTE1);
+
+    PRSG_CALCTAB_IMAGE.WRITE_STR(NCOLUMN_ID => PRSG_CALCTAB_IMAGE.COLUMN_ID(COLUMN_DET_OR_TRWRK_),
+                                 NROW_ID    => PRSG_CALCTAB_IMAGE.ROW_ID(ROW_ALL_),
+                                 SVALUE     => '',
+                                 BPROTECT   => BTRUE,
+                                 SATTRIBUTE => SATTRIBUTE1);
+
+    SFORMULA := 'ОКРУГЛ({Очередной_год@СтрокаУслугиВсего}+{Очередной_год@СтрокаРаботыВсего};5)';
+    PRSG_CALCTAB_IMAGE.WRITE_NUM(NCOLUMN_ID => PRSG_CALCTAB_IMAGE.COLUMN_ID(COLUMN_D_YEAR_),
+                                 NROW_ID    => PRSG_CALCTAB_IMAGE.ROW_ID(ROW_ALL_),
+                                 NVALUE     => null,
+                                 BPROTECT   => BTRUE,
+                                 SATTRIBUTE => SATTRIBUTE1,
+                                 SFORMULA   => SFORMULA);
+
+    SFORMULA := 'ОКРУГЛ({Первый_год@СтрокаУслугиВсего}+{Первый_год@СтрокаРаботыВсего};5)';
+    PRSG_CALCTAB_IMAGE.WRITE_NUM(NCOLUMN_ID => PRSG_CALCTAB_IMAGE.COLUMN_ID(COLUMN_D_1YEAR_),
+                                 NROW_ID    => PRSG_CALCTAB_IMAGE.ROW_ID(ROW_ALL_),
+                                 NVALUE     => null,
+                                 BPROTECT   => BTRUE,
+                                 SATTRIBUTE => SATTRIBUTE1,
+                                 SFORMULA   => SFORMULA);
+
+    SFORMULA := 'ОКРУГЛ({Второй_год@СтрокаУслугиВсего}+{Второй_год@СтрокаРаботыВсего};5)';
+    PRSG_CALCTAB_IMAGE.WRITE_NUM(NCOLUMN_ID => PRSG_CALCTAB_IMAGE.COLUMN_ID(COLUMN_D_2YEAR_),
+                                 NROW_ID    => PRSG_CALCTAB_IMAGE.ROW_ID(ROW_ALL_),
+                                 NVALUE     => null,
+                                 BPROTECT   => BTRUE,
+                                 SATTRIBUTE => SATTRIBUTE1,
+                                 SFORMULA   => SFORMULA);
+
+  end DO_BEFORE_ALL;
+
+  /* услуги */
+  procedure DO_BEFORE_SERV_ALL(BPROTECT_TR in boolean) as
+
+    STEXT       PKG_STD.TSTRING;
+    SATTRIBUTE1 PKG_STD.TSTRING; -- доп. атрибуты 1 группы (колонки 1-4)
+
+    SFORMULA PKG_STD.TSTRING; -- формула
+    BTRUE    boolean := true;
+    --bFALSE            boolean := false;
+  begin
+
+    SATTRIBUTE1 := 'Font.Name=Calibri;Interior.ColorIndex=35;VerticalAlignment=xlVAlignTop;HorizontalAlignment=xlHAlignCenter;Border(Around).LineStyle=xlContinuous';
+
+    STEXT := 'Всего по услугам:';
+    PRSG_CALCTAB_IMAGE.WRITE_STR(NCOLUMN_ID => PRSG_CALCTAB_IMAGE.COLUMN_ID(COLUMN_PP_),
+                                 NROW_ID    => PRSG_CALCTAB_IMAGE.ROW_ID(ROW_SERV_ALL_),
+                                 SVALUE     => STEXT,
+                                 BPROTECT   => BPROTECT_TR,
+                                 SATTRIBUTE => SATTRIBUTE1);
+
+    PRSG_CALCTAB_IMAGE.WRITE_STR(NCOLUMN_ID => PRSG_CALCTAB_IMAGE.COLUMN_ID(COLUMN_WORKNAME_),
+                                 NROW_ID    => PRSG_CALCTAB_IMAGE.ROW_ID(ROW_SERV_ALL_),
+                                 SVALUE     => 'X',
+                                 BPROTECT   => BPROTECT_TR,
+                                 SATTRIBUTE => SATTRIBUTE1);
+
+    PRSG_CALCTAB_IMAGE.WRITE_STR(NCOLUMN_ID => PRSG_CALCTAB_IMAGE.COLUMN_ID(COLUMN_COSTNAME_),
+                                 NROW_ID    => PRSG_CALCTAB_IMAGE.ROW_ID(ROW_SERV_ALL_),
+                                 SVALUE     => 'X',
+                                 BPROTECT   => BPROTECT_TR,
+                                 SATTRIBUTE => SATTRIBUTE1);
+
+    PRSG_CALCTAB_IMAGE.WRITE_STR(NCOLUMN_ID => PRSG_CALCTAB_IMAGE.COLUMN_ID(COLUMN_APPOINTMENT_),
+                                 NROW_ID    => PRSG_CALCTAB_IMAGE.ROW_ID(ROW_SERV_ALL_),
+                                 SVALUE     => 'X',
+                                 BPROTECT   => BPROTECT_TR,
+                                 SATTRIBUTE => SATTRIBUTE1);
+
+    PRSG_CALCTAB_IMAGE.WRITE_STR(NCOLUMN_ID => PRSG_CALCTAB_IMAGE.COLUMN_ID(COLUMN_RATIONALE_),
+                                 NROW_ID    => PRSG_CALCTAB_IMAGE.ROW_ID(ROW_SERV_ALL_),
+                                 SVALUE     => 'X',
+                                 BPROTECT   => BPROTECT_TR,
+                                 SATTRIBUTE => SATTRIBUTE1);
+
+    PRSG_CALCTAB_IMAGE.WRITE_STR(NCOLUMN_ID => PRSG_CALCTAB_IMAGE.COLUMN_ID(COLUMN_DET_OR_TRWRK_),
+                                 NROW_ID    => PRSG_CALCTAB_IMAGE.ROW_ID(ROW_SERV_ALL_),
+                                 SVALUE     => '',
+                                 BPROTECT   => BPROTECT_TR,
+                                 SATTRIBUTE => SATTRIBUTE1);
+
+    GET_FORMULA_WRK_OGRD_0(TROW_ALL_SERV, PRSG_CALCTAB_IMAGE.COLUMN_ID(COLUMN_D_YEAR_), SFORMULA);
+    PRSG_CALCTAB_IMAGE.WRITE_NUM(NCOLUMN_ID => PRSG_CALCTAB_IMAGE.COLUMN_ID(COLUMN_D_YEAR_),
+                                 NROW_ID    => PRSG_CALCTAB_IMAGE.ROW_ID(ROW_SERV_ALL_),
+                                 NVALUE     => null,
+                                 BPROTECT   => BPROTECT_TR,
+                                 SATTRIBUTE => SATTRIBUTE1,
+                                 SFORMULA   => SFORMULA);
+
+    GET_FORMULA_WRK_OGRD_0(TROW_ALL_SERV, PRSG_CALCTAB_IMAGE.COLUMN_ID(COLUMN_D_1YEAR_), SFORMULA);
+    PRSG_CALCTAB_IMAGE.WRITE_NUM(NCOLUMN_ID => PRSG_CALCTAB_IMAGE.COLUMN_ID(COLUMN_D_1YEAR_),
+                                 NROW_ID    => PRSG_CALCTAB_IMAGE.ROW_ID(ROW_SERV_ALL_),
+                                 NVALUE     => null,
+                                 BPROTECT   => BPROTECT_TR,
+                                 SATTRIBUTE => SATTRIBUTE1,
+                                 SFORMULA   => SFORMULA);
+
+    GET_FORMULA_WRK_OGRD_0(TROW_ALL_SERV, PRSG_CALCTAB_IMAGE.COLUMN_ID(COLUMN_D_2YEAR_), SFORMULA);
+    PRSG_CALCTAB_IMAGE.WRITE_NUM(NCOLUMN_ID => PRSG_CALCTAB_IMAGE.COLUMN_ID(COLUMN_D_2YEAR_),
+                                 NROW_ID    => PRSG_CALCTAB_IMAGE.ROW_ID(ROW_SERV_ALL_),
+                                 NVALUE     => null,
+                                 BPROTECT   => BPROTECT_TR,
+                                 SATTRIBUTE => SATTRIBUTE1,
+                                 SFORMULA   => SFORMULA);
+
+  end DO_BEFORE_SERV_ALL;
+
+  /* работы */
+  procedure DO_BEFORE_WORK_ALL(BPROTECT_TR in boolean) as
+
+    STEXT       PKG_STD.TSTRING;
+    SATTRIBUTE1 PKG_STD.TSTRING; -- доп. атрибуты 1 группы (колонки 1-4)
+
+    SFORMULA PKG_STD.TSTRING; -- формула
+    BTRUE    boolean := true;
+    --bFALSE            boolean := false;
+  begin
+
+    SATTRIBUTE1 := 'Font.Name=Calibri;Interior.ColorIndex=35;VerticalAlignment=xlVAlignTop;HorizontalAlignment=xlHAlignCenter;Border(Around).LineStyle=xlContinuous';
+
+    STEXT := 'Всего по работам:';
+    PRSG_CALCTAB_IMAGE.WRITE_STR(NCOLUMN_ID => PRSG_CALCTAB_IMAGE.COLUMN_ID(COLUMN_PP_),
+                                 NROW_ID    => PRSG_CALCTAB_IMAGE.ROW_ID(ROW_WORK_ALL_),
+                                 SVALUE     => STEXT,
+                                 BPROTECT   => BPROTECT_TR,
+                                 SATTRIBUTE => SATTRIBUTE1);
+
+    PRSG_CALCTAB_IMAGE.WRITE_STR(NCOLUMN_ID => PRSG_CALCTAB_IMAGE.COLUMN_ID(COLUMN_WORKNAME_),
+                                 NROW_ID    => PRSG_CALCTAB_IMAGE.ROW_ID(ROW_WORK_ALL_),
+                                 SVALUE     => 'X',
+                                 BPROTECT   => BPROTECT_TR,
+                                 SATTRIBUTE => SATTRIBUTE1);
+
+    PRSG_CALCTAB_IMAGE.WRITE_STR(NCOLUMN_ID => PRSG_CALCTAB_IMAGE.COLUMN_ID(COLUMN_COSTNAME_),
+                                 NROW_ID    => PRSG_CALCTAB_IMAGE.ROW_ID(ROW_WORK_ALL_),
+                                 SVALUE     => 'X',
+                                 BPROTECT   => BPROTECT_TR,
+                                 SATTRIBUTE => SATTRIBUTE1);
+
+    PRSG_CALCTAB_IMAGE.WRITE_STR(NCOLUMN_ID => PRSG_CALCTAB_IMAGE.COLUMN_ID(COLUMN_APPOINTMENT_),
+                                 NROW_ID    => PRSG_CALCTAB_IMAGE.ROW_ID(ROW_WORK_ALL_),
+                                 SVALUE     => 'X',
+                                 BPROTECT   => BPROTECT_TR,
+                                 SATTRIBUTE => SATTRIBUTE1);
+
+    PRSG_CALCTAB_IMAGE.WRITE_STR(NCOLUMN_ID => PRSG_CALCTAB_IMAGE.COLUMN_ID(COLUMN_RATIONALE_),
+                                 NROW_ID    => PRSG_CALCTAB_IMAGE.ROW_ID(ROW_WORK_ALL_),
+                                 SVALUE     => 'X',
+                                 BPROTECT   => BPROTECT_TR,
+                                 SATTRIBUTE => SATTRIBUTE1);
+
+    PRSG_CALCTAB_IMAGE.WRITE_STR(NCOLUMN_ID => PRSG_CALCTAB_IMAGE.COLUMN_ID(COLUMN_DET_OR_TRWRK_),
+                                 NROW_ID    => PRSG_CALCTAB_IMAGE.ROW_ID(ROW_WORK_ALL_),
+                                 SVALUE     => '',
+                                 BPROTECT   => BPROTECT_TR,
+                                 SATTRIBUTE => SATTRIBUTE1);
+
+    GET_FORMULA_WRK_OGRD_0(TROW_ALL_WORK, PRSG_CALCTAB_IMAGE.COLUMN_ID(COLUMN_D_YEAR_), SFORMULA);
+    PRSG_CALCTAB_IMAGE.WRITE_NUM(NCOLUMN_ID => PRSG_CALCTAB_IMAGE.COLUMN_ID(COLUMN_D_YEAR_),
+                                 NROW_ID    => PRSG_CALCTAB_IMAGE.ROW_ID(ROW_WORK_ALL_),
+                                 NVALUE     => null,
+                                 BPROTECT   => BPROTECT_TR,
+                                 SATTRIBUTE => SATTRIBUTE1,
+                                 SFORMULA   => SFORMULA);
+
+    GET_FORMULA_WRK_OGRD_0(TROW_ALL_WORK, PRSG_CALCTAB_IMAGE.COLUMN_ID(COLUMN_D_1YEAR_), SFORMULA);
+    PRSG_CALCTAB_IMAGE.WRITE_NUM(NCOLUMN_ID => PRSG_CALCTAB_IMAGE.COLUMN_ID(COLUMN_D_1YEAR_),
+                                 NROW_ID    => PRSG_CALCTAB_IMAGE.ROW_ID(ROW_WORK_ALL_),
+                                 NVALUE     => null,
+                                 BPROTECT   => BPROTECT_TR,
+                                 SATTRIBUTE => SATTRIBUTE1,
+                                 SFORMULA   => SFORMULA);
+
+    GET_FORMULA_WRK_OGRD_0(TROW_ALL_WORK, PRSG_CALCTAB_IMAGE.COLUMN_ID(COLUMN_D_2YEAR_), SFORMULA);
+    PRSG_CALCTAB_IMAGE.WRITE_NUM(NCOLUMN_ID => PRSG_CALCTAB_IMAGE.COLUMN_ID(COLUMN_D_2YEAR_),
+                                 NROW_ID    => PRSG_CALCTAB_IMAGE.ROW_ID(ROW_WORK_ALL_),
+                                 NVALUE     => null,
+                                 BPROTECT   => BPROTECT_TR,
+                                 SATTRIBUTE => SATTRIBUTE1,
+                                 SFORMULA   => SFORMULA);
+
+  end DO_BEFORE_WORK_ALL;
+
+  /*procedure DO_BEFORE_STYLE
+  (
+     nRN           in number,
+     sROW          in varchar,
+    sATTRIBUTE1    out varchar,
+    sATTRIBUTE2    out varchar,
+    sATTRIBUTE3    out varchar,
+    sATTRIBUTE4    out varchar
+  )
+  as
+    rROW_PNZ             PRSG_CALCTAB.tCURSOR;
+    rROW_TR              PRSG_CALCTAB.tCURSOR;
+    rROW_PNZ_NULL        PRSG_CALCTAB.tCURSOR;
+    rROW_TR_NULL         PRSG_CALCTAB.tCURSOR;
+    bRUN                 boolean := true;
+
+    rSERV_WORK           tSW;
+    rPNZ                 tSW;
+    rTR                  tSW;
+    rPNZ_NULL            tSW;
+    rTR_NULL             tSW;
+    rROW_SW              PRSG_CALCTAB.tCURSOR;
+    bTRUE                boolean := true;
+
+    bPROTECT             boolean;
+
+    -- формулы всего по услугам/работам
+    sFORM_SW_ALL_YEAR    PKG_STD.tSTRING;
+    sFORM_SW_ALL_1YEAR   PKG_STD.tSTRING;
+    sFORM_SW_ALL_2YEAR   PKG_STD.tSTRING;
+    -- формулы итого по услуге/работе
+    sFORM_SW_IT_YEAR     PKG_STD.tSTRING;
+    sFORM_SW_IT_1YEAR    PKG_STD.tSTRING;
+    sFORM_SW_IT_2YEAR    PKG_STD.tSTRING;
+    -- формулы итого по ПНЗ
+    sFORM_PNZ_IT_YEAR    PKG_STD.tSTRING;
+    sFORM_PNZ_IT_1YEAR   PKG_STD.tSTRING;
+    sFORM_PNZ_IT_2YEAR   PKG_STD.tSTRING;
+    -- формулы итого по работе с детализацией
+    sFORM_WORK_IT_YEAR   PKG_STD.tSTRING;
+    sFORM_WORK_IT_1YEAR  PKG_STD.tSTRING;
+    sFORM_WORK_IT_2YEAR  PKG_STD.tSTRING;
+
+    nROW_WRK_PREV_ID     PKG_STD.tREF;
+    tROW_ORGD            PKG_CONTVALLOC.tCONTAINER;
+
+    nCOL_PP_ID           PKG_STD.tREF;
+    nCOL_WORKNAME_ID     PKG_STD.tREF;
+    nCOL_COSTNAME_ID     PKG_STD.tREF;
+    nCOL_APPOINTMENT_ID  PKG_STD.tREF;
+    nCOL_RATIONALE_ID    PKG_STD.tREF;
+    nCOL_DET_OR_TRWRK    PKG_STD.tREF;
+    nCOL_D_YEAR          PKG_STD.tREF;
+    nCOL_D_1YEAR         PKG_STD.tREF;
+    nCOL_D_2YEAR         PKG_STD.tREF;
+
+    nGZW_RN_PREV         PKG_STD.tREF;
+    nROW_SRV_WRK_ID      PKG_STD.tREF;
+    nROW_PNZ_ID          PKG_STD.tREF;
+    nROW_PNZ_NULL_ID     PKG_STD.tREF;
+
+    nCOUNT_FPDPPGZWPNZD         number;
+
+  nTYPE integer:=0;
+  begin
+    \* Итоговые строки по услуге/работе *\
+  PRSG_CALCTAB_IMAGE.FIRST_ROW( sROW,rROW_SW );
+  loop
+      READ_SW
+      (
+        nTYPE_WORK => case when sROW = ROW_SERV_ then TYPE_SERV_
+                           when sROW = ROW_WORK_ then TYPE_WORK_ end,
+        nRN        => rROW_SW.ROW_SOURCE,
+        rSW        => rSERV_WORK
+      );
+
+      \* Проверяем кол-во территорий у данной услуги/работы *\
+      begin
+        select count(*)
+        into nCOUNT_FPDPPGZWPNZD
+        from
+        (
+          select REF_A01
+          from CALCTAB_DATA
+          where TYPE = (case when sROW = ROW_SERV_ then TYPE_SERV_TR_
+                             when sROW = ROW_WORK_ then TYPE_WORK_TR_ end)
+            and REF_A01 = rSERV_WORK.GZW_RN
+          group by REF_A01, REF_A04, REF_A05, REF_A06
+        );
+      end;
+
+      nROW_SRV_WRK_ID := PRSG_CALCTAB_IMAGE.ROW_ID
+                         (
+                           sROW_NAME      => case when sROW = ROW_SERV_ then ROW_SERV_IT_
+                                                  when sROW = ROW_WORK_ then ROW_WORK_IT_ end,
+                           nPARENT_ROW_ID => rROW_SW.ROW_ID
+                         );
+
+     \* Формулы Всего по услугам/работам *\
+     if sFORM_SW_ALL_YEAR = 'СУММ(' then
+        sFORM_SW_ALL_YEAR  := sFORM_SW_ALL_YEAR||PRSG_CALCTAB_IMAGE.ADDRESS( nCOL_D_YEAR, nROW_SRV_WRK_ID );
+        sFORM_SW_ALL_1YEAR := sFORM_SW_ALL_1YEAR||PRSG_CALCTAB_IMAGE.ADDRESS( nCOL_D_1YEAR, nROW_SRV_WRK_ID );
+        sFORM_SW_ALL_2YEAR := sFORM_SW_ALL_2YEAR||PRSG_CALCTAB_IMAGE.ADDRESS( nCOL_D_2YEAR, nROW_SRV_WRK_ID );
+      else
+        sFORM_SW_ALL_YEAR  := sFORM_SW_ALL_YEAR||';'||PRSG_CALCTAB_IMAGE.ADDRESS( nCOL_D_YEAR, nROW_SRV_WRK_ID );
+        sFORM_SW_ALL_1YEAR := sFORM_SW_ALL_1YEAR||';'||PRSG_CALCTAB_IMAGE.ADDRESS( nCOL_D_1YEAR, nROW_SRV_WRK_ID );
+        sFORM_SW_ALL_2YEAR := sFORM_SW_ALL_2YEAR||';'||PRSG_CALCTAB_IMAGE.ADDRESS( nCOL_D_2YEAR, nROW_SRV_WRK_ID );
+      end if;
+
+      \* Только для работ *\
+      if sROW = ROW_WORK_ then
+        if nGZW_RN_PREV is null or nGZW_RN_PREV <> rSERV_WORK.GZW_RN then
+          GET_FORMULA_WRK_OGRD_0( tROW_ORGD, nCOL_D_YEAR, sFORM_WORK_IT_YEAR );
+          GET_FORMULA_WRK_OGRD_0( tROW_ORGD, nCOL_D_1YEAR, sFORM_WORK_IT_1YEAR );
+          GET_FORMULA_WRK_OGRD_0( tROW_ORGD, nCOL_D_2YEAR, sFORM_WORK_IT_2YEAR );
+
+          if nROW_WRK_PREV_ID is not null then
+            null;
+            \* текущий год *\
+            \*PRSG_CALCTAB_IMAGE.WRITE_NUM
+            (
+              nCOLUMN_ID      => nCOL_D_YEAR,
+              nROW_ID         => nROW_WRK_PREV_ID,
+              nVALUE          => null,
+              sATTRIBUTE      => sATTRIBUTE4,
+              bPROTECT        => true,
+              sFORMULA        => sFORM_WORK_IT_YEAR
+            );
+            \* первый год *\
+            PRSG_CALCTAB_IMAGE.WRITE_NUM
+            (
+              nCOLUMN_ID      => nCOL_D_1YEAR,
+              nROW_ID         => nROW_WRK_PREV_ID,
+              nVALUE          => null,
+              sATTRIBUTE      => sATTRIBUTE4,
+              bPROTECT        => true,
+              sFORMULA        => sFORM_WORK_IT_1YEAR
+            );
+            \* второй год *\
+            PRSG_CALCTAB_IMAGE.WRITE_NUM
+            (
+              nCOLUMN_ID      => nCOL_D_2YEAR,
+              nROW_ID         => nROW_WRK_PREV_ID,
+              nVALUE          => null,
+              sATTRIBUTE      => sATTRIBUTE4,
+              bPROTECT        => true,
+              sFORMULA        => sFORM_WORK_IT_2YEAR
+            );*\
+          end if;
+
+         \* \* Перезаписываем итоговую строку по работе *\
+          nROW_WRK_PREV_ID := nROW_SRV_WRK_ID;
+          \* Очищаем контейнер *\
+          PKG_CONTVALLOC.PURGE( tROW_ORGD );*\
+        end if;
+
+        if nGZW_RN_PREV = rSERV_WORK.GZW_RN
+          and rSERV_WORK.ORGD_RN is not null then
+          -- сохраняем номер строки для итоговой формулы
+          \*PKG_CONTVALLOC.APPENDN( tROW_ORGD, nROW_SRV_WRK_ID );*\
+          null;
+        end if;
+      end if;
+
+      \*PRSG_CALCTAB_IMAGE.WRITE_STR
+      (
+        nCOLUMN_ID      => nCOL_PP_ID,
+        nROW_ID         => nROW_SRV_WRK_ID,
+        sVALUE          => case when rSERV_WORK.GZW_NUM2 is not null then to_char(rSERV_WORK.GZW_NUM)||'.'||
+                                to_char(rSERV_WORK.GZW_NUM2) else to_char(rSERV_WORK.GZW_NUM) end,
+        sATTRIBUTE      => sATTRIBUTE1,
+        bPROTECT        => bPROTECT
+      );
+
+      PRSG_CALCTAB_IMAGE.WRITE_STR
+      (
+        nCOLUMN_ID      => nCOL_WORKNAME_ID,
+        nROW_ID         => nROW_SRV_WRK_ID,
+        sVALUE          => case when rSERV_WORK.ORGD_RN is null then rSERV_WORK.WORKNAME
+                                else rSERV_WORK.ORGD_NAME end,
+        sATTRIBUTE      => sATTRIBUTE1,
+        bPROTECT        => bPROTECT
+      );
+
+      PRSG_CALCTAB_IMAGE.WRITE_STR
+      (
+        nCOLUMN_ID      => nCOL_DET_OR_TRWRK,
+        nROW_ID         => nROW_SRV_WRK_ID,
+        sVALUE          => 'Итоговая строка',
+        sATTRIBUTE      => sATTRIBUTE3,
+        bPROTECT        => bPROTECT
+      );
+
+      \* Формулы *\
+      sFORM_SW_IT_YEAR  := 'СУММ(';
+      sFORM_SW_IT_1YEAR := 'СУММ(';
+      sFORM_SW_IT_2YEAR := 'СУММ(';*\
+
+      \* Строки по ПНЗ *\
+      PRSG_CALCTAB_IMAGE.FIRST_ROW( case when sROW = ROW_SERV_ then ROW_SERV_PNZ_
+                                         when sROW = ROW_WORK_ then ROW_WORK_PNZ_ end,rROW_PNZ,rROW_SW.ROW_ID  );
+      loop
+        READ_SW
+        (
+          nTYPE_WORK => case when sROW = ROW_SERV_ then TYPE_SERV_
+                             when sROW = ROW_WORK_ then TYPE_WORK_ end,
+          nRN        => rROW_PNZ.ROW_SOURCE,
+          rSW        => rPNZ
+        );
+
+        nCOL_COSTNAME_ID    := PRSG_CALCTAB_IMAGE.COLUMN_ID( sCOLUMN_NAME => COLUMN_COSTNAME_ );
+        nCOL_APPOINTMENT_ID := PRSG_CALCTAB_IMAGE.COLUMN_ID( sCOLUMN_NAME => COLUMN_APPOINTMENT_ );
+        nCOL_RATIONALE_ID   := PRSG_CALCTAB_IMAGE.COLUMN_ID( sCOLUMN_NAME => COLUMN_RATIONALE_ );
+
+        nROW_PNZ_ID := PRSG_CALCTAB_IMAGE.ROW_ID
+                       (
+                         sROW_NAME       => case when sROW = ROW_SERV_ then ROW_SERV_PNZ_IT_
+                                           when sROW = ROW_WORK_ then ROW_WORK_PNZ_IT_ end,
+                         nPARENT_ROW_ID => rROW_PNZ.ROW_ID
+                       );
+
+        \* Формулы итого по услуге/работе *\
+        if sFORM_SW_IT_YEAR = 'СУММ(' then
+          sFORM_SW_IT_YEAR  := sFORM_SW_IT_YEAR||PRSG_CALCTAB_IMAGE.ADDRESS( nCOL_D_YEAR, nROW_PNZ_ID );
+          sFORM_SW_IT_1YEAR := sFORM_SW_IT_1YEAR||PRSG_CALCTAB_IMAGE.ADDRESS( nCOL_D_1YEAR, nROW_PNZ_ID );
+          sFORM_SW_IT_2YEAR := sFORM_SW_IT_2YEAR||PRSG_CALCTAB_IMAGE.ADDRESS( nCOL_D_2YEAR, nROW_PNZ_ID );
+        else
+          sFORM_SW_IT_YEAR  := sFORM_SW_IT_YEAR||';'||PRSG_CALCTAB_IMAGE.ADDRESS( nCOL_D_YEAR, nROW_PNZ_ID );
+          sFORM_SW_IT_1YEAR := sFORM_SW_IT_1YEAR||';'||PRSG_CALCTAB_IMAGE.ADDRESS( nCOL_D_1YEAR, nROW_PNZ_ID );
+          sFORM_SW_IT_2YEAR := sFORM_SW_IT_2YEAR||';'||PRSG_CALCTAB_IMAGE.ADDRESS( nCOL_D_2YEAR, nROW_PNZ_ID );
+        end if;
+
+        \*PRSG_CALCTAB_IMAGE.WRITE
+        (
+          nCOLUMN_ID      => nCOL_COSTNAME_ID,
+          nROW_ID         => nROW_PNZ_ID,
+          sVALUE          => rPNZ.D_COSTNAME,
+          sATTRIBUTE      => sATTRIBUTE2,
+          bPROTECT        => bPROTECT
+        );
+
+        PRSG_CALCTAB_IMAGE.WRITE
+        (
+          nCOLUMN_ID      => nCOL_APPOINTMENT_ID,
+          nROW_ID         => nROW_PNZ_ID,
+          sVALUE          => rPNZ.D_APPOINTMENT,
+          sATTRIBUTE      => sATTRIBUTE2,
+          bPROTECT        => bPROTECT
+        );
+
+        PRSG_CALCTAB_IMAGE.WRITE
+        (
+          nCOLUMN_ID      => nCOL_RATIONALE_ID,
+          nROW_ID         => nROW_PNZ_ID,
+          sVALUE          => rPNZ.D_RATIONALE,
+          sATTRIBUTE      => sATTRIBUTE2,
+          bPROTECT        => bPROTECT
+        );*\
+
+        if nCOUNT_FPDPPGZWPNZD = 1 then
+         \* PRSG_CALCTAB_IMAGE.WRITE
+          (
+            nCOLUMN_ID      => nCOL_DET_OR_TRWRK,
+            nROW_ID         => nROW_PNZ_ID,
+            sVALUE          => case when rPNZ.GZW_RN is not null then
+                                      rPNZ.TRWRK_CODE||' - '||rPNZ.TRWRK_NAME
+                                 else null end,
+            sATTRIBUTE      => sATTRIBUTE3,
+            bPROTECT        => bPROTECT
+          );*\
+          null;
+        end if;
+
+        \* Формулы итого по ПНЗ *\
+        sFORM_PNZ_IT_YEAR  := 'СУММ(';
+        sFORM_PNZ_IT_1YEAR := 'СУММ(';
+        sFORM_PNZ_IT_2YEAR := 'СУММ(';
+
+        \* Строки по территориям *\
+        PRSG_CALCTAB_IMAGE.FIRST_ROW( case when sROW = ROW_SERV_ then ROW_SERV_TR_
+                                           when sROW = ROW_WORK_ then ROW_WORK_TR_ end,rROW_TR,rROW_PNZ.ROW_ID  );
+        loop
+          READ_SW
+          (
+            nTYPE_WORK => case when sROW = ROW_SERV_ then TYPE_SERV_
+                               when sROW = ROW_WORK_ then TYPE_WORK_ end,
+            nRN        => rROW_TR.ROW_SOURCE,
+            rSW        => rTR
+          );
+
+          \* Формулы итого по ПНЗ *\
+          if sFORM_PNZ_IT_YEAR = 'СУММ(' then
+            sFORM_PNZ_IT_YEAR  := sFORM_PNZ_IT_YEAR||PRSG_CALCTAB_IMAGE.ADDRESS( nCOL_D_YEAR, rROW_TR.ROW_ID );
+            sFORM_PNZ_IT_1YEAR := sFORM_PNZ_IT_1YEAR||PRSG_CALCTAB_IMAGE.ADDRESS( nCOL_D_1YEAR, rROW_TR.ROW_ID );
+            sFORM_PNZ_IT_2YEAR := sFORM_PNZ_IT_2YEAR||PRSG_CALCTAB_IMAGE.ADDRESS( nCOL_D_2YEAR, rROW_TR.ROW_ID );
+          else
+            sFORM_PNZ_IT_YEAR  := sFORM_PNZ_IT_YEAR||';'||PRSG_CALCTAB_IMAGE.ADDRESS( nCOL_D_YEAR, rROW_TR.ROW_ID );
+            sFORM_PNZ_IT_1YEAR := sFORM_PNZ_IT_1YEAR||';'||PRSG_CALCTAB_IMAGE.ADDRESS( nCOL_D_1YEAR, rROW_TR.ROW_ID );
+            sFORM_PNZ_IT_2YEAR := sFORM_PNZ_IT_2YEAR||';'||PRSG_CALCTAB_IMAGE.ADDRESS( nCOL_D_2YEAR, rROW_TR.ROW_ID );
+          end if;
+
+          \*PRSG_CALCTAB_IMAGE.WRITE_STR
+          (
+            nCOLUMN_ID      => nCOL_DET_OR_TRWRK,
+            nROW_ID         => rROW_TR.ROW_ID,
+            sVALUE          => case when rTR.GZW_RN is not null then
+                                      rTR.TRWRK_CODE||' - '||rTR.TRWRK_NAME
+                                 else null end,
+            sATTRIBUTE      => sATTRIBUTE3,
+            bPROTECT        => bPROTECT
+          );
+
+          PRSG_CALCTAB_IMAGE.WRITE_NUM
+          (
+            nCOLUMN_ID      => nCOL_D_YEAR,
+            nROW_ID         => rROW_TR.ROW_ID,
+            nVALUE          => rTR.D_YEAR,
+            sATTRIBUTE      => sATTRIBUTE4,
+            bPROTECT        => bPROTECT
+          );
+
+          PRSG_CALCTAB_IMAGE.WRITE_NUM
+          (
+            nCOLUMN_ID      => nCOL_D_1YEAR,
+            nROW_ID         => rROW_TR.ROW_ID,
+            nVALUE          => rTR.D_1YEAR,
+            sATTRIBUTE      => sATTRIBUTE4,
+            bPROTECT        => bPROTECT
+          );
+
+          PRSG_CALCTAB_IMAGE.WRITE_NUM
+          (
+            nCOLUMN_ID      => nCOL_D_2YEAR,
+            nROW_ID         => rROW_TR.ROW_ID,
+            nVALUE          => rTR.D_2YEAR,
+            sATTRIBUTE      => sATTRIBUTE4,
+            bPROTECT        => bPROTECT
+          );*\
+
+          if ( not PRSG_CALCTAB_IMAGE.NEXT_ROW(rROW_TR) ) then
+            exit;
+          end if;
+        end loop;
+
+        \* Формулы итого по ПНЗ *\
+        sFORM_PNZ_IT_YEAR  := sFORM_PNZ_IT_YEAR||')';
+        sFORM_PNZ_IT_1YEAR := sFORM_PNZ_IT_1YEAR||')';
+        sFORM_PNZ_IT_2YEAR := sFORM_PNZ_IT_2YEAR||')';
+
+        \*PRSG_CALCTAB_IMAGE.WRITE_NUM
+        (
+          nCOLUMN_ID      => nCOL_D_YEAR,
+          nROW_ID         => nROW_PNZ_ID,
+          nVALUE          => case when nCOUNT_FPDPPGZWPNZD = 1 then rPNZ.D_YEAR else null end,
+          sATTRIBUTE      => sATTRIBUTE4,
+          bPROTECT        => true,
+          sFORMULA        => case when nCOUNT_FPDPPGZWPNZD = 1 then null else sFORM_PNZ_IT_YEAR end
+        );
+
+        PRSG_CALCTAB_IMAGE.WRITE_NUM
+        (
+          nCOLUMN_ID      => nCOL_D_1YEAR,
+          nROW_ID         => nROW_PNZ_ID,
+          nVALUE          => case when nCOUNT_FPDPPGZWPNZD = 1 then rPNZ.D_1YEAR else null end,
+          sATTRIBUTE      => sATTRIBUTE4,
+          bPROTECT        => true,
+          sFORMULA        => case when nCOUNT_FPDPPGZWPNZD = 1 then null else sFORM_PNZ_IT_1YEAR end
+        );
+
+        PRSG_CALCTAB_IMAGE.WRITE_NUM
+        (
+          nCOLUMN_ID      => nCOL_D_2YEAR,
+          nROW_ID         => nROW_PNZ_ID,
+          nVALUE          => case when nCOUNT_FPDPPGZWPNZD = 1 then rPNZ.D_2YEAR else null end,
+          sATTRIBUTE      => sATTRIBUTE4,
+          bPROTECT        => true,
+          sFORMULA        => case when nCOUNT_FPDPPGZWPNZD = 1 then null else sFORM_PNZ_IT_2YEAR end
+        );*\
+
+        if ( not PRSG_CALCTAB_IMAGE.NEXT_ROW(rROW_PNZ) ) then
+          exit;
+        end if;
+      end loop;
+
+      if PRSG_CALCTAB.MODE_EDIT() then
+        \* Строки по ПНЗ Пустые *\
+        PRSG_CALCTAB_IMAGE.FIRST_ROW( case when sROW = ROW_SERV_ then ROW_SERV_PNZ_NULL_
+                                           when sROW = ROW_WORK_ then ROW_WORK_PNZ_NULL_ end,rROW_PNZ_NULL,rROW_SW.ROW_ID  );
+        loop
+          READ_SW
+          (
+            nTYPE_WORK => case when sROW = ROW_SERV_ then TYPE_SERV_
+                               when sROW = ROW_WORK_ then TYPE_WORK_ end,
+            nRN        => rROW_PNZ_NULL.ROW_SOURCE,
+            rSW        => rPNZ_NULL
+          );
+
+          nROW_PNZ_NULL_ID := PRSG_CALCTAB_IMAGE.ROW_ID
+                              (
+                                sROW_NAME => case when sROW = ROW_SERV_ then ROW_SERV_PNZ_IT_NULL_
+                                                  when sROW = ROW_WORK_ then ROW_WORK_PNZ_IT_NULL_ end,
+                                nPARENT_ROW_ID => rROW_PNZ_NULL.ROW_ID
+                              );
+
+          \* Формулы итого по услуге/работе *\
+          if sFORM_SW_IT_YEAR = 'СУММ(' then
+            sFORM_SW_IT_YEAR  := sFORM_SW_IT_YEAR||PRSG_CALCTAB_IMAGE.ADDRESS( nCOL_D_YEAR, nROW_PNZ_NULL_ID );
+            sFORM_SW_IT_1YEAR := sFORM_SW_IT_1YEAR||PRSG_CALCTAB_IMAGE.ADDRESS( nCOL_D_1YEAR, nROW_PNZ_NULL_ID );
+            sFORM_SW_IT_2YEAR := sFORM_SW_IT_2YEAR||PRSG_CALCTAB_IMAGE.ADDRESS( nCOL_D_2YEAR, nROW_PNZ_NULL_ID );
+          else
+            sFORM_SW_IT_YEAR  := sFORM_SW_IT_YEAR||';'||PRSG_CALCTAB_IMAGE.ADDRESS( nCOL_D_YEAR, nROW_PNZ_NULL_ID );
+            sFORM_SW_IT_1YEAR := sFORM_SW_IT_1YEAR||';'||PRSG_CALCTAB_IMAGE.ADDRESS( nCOL_D_1YEAR, nROW_PNZ_NULL_ID );
+            sFORM_SW_IT_2YEAR := sFORM_SW_IT_2YEAR||';'||PRSG_CALCTAB_IMAGE.ADDRESS( nCOL_D_2YEAR, nROW_PNZ_NULL_ID );
+          end if;
+
+          if nCOUNT_FPDPPGZWPNZD = 1 then
+           \* PRSG_CALCTAB_IMAGE.WRITE
+            (
+              nCOLUMN_ID      => nCOL_DET_OR_TRWRK,
+              nROW_ID         => nROW_PNZ_NULL_ID,
+              sVALUE          => case when rPNZ_NULL.GZW_RN is not null then
+                                      rPNZ_NULL.TRWRK_CODE||' - '||rPNZ_NULL.TRWRK_NAME
+                                 else null end,
+              sATTRIBUTE      => sATTRIBUTE3,
+              bPROTECT        => bPROTECT
+            );*\
+            null;
+          end if;
+
+          \* Формулы итого по ПНЗ *\
+          sFORM_PNZ_IT_YEAR  := 'СУММ(';
+          sFORM_PNZ_IT_1YEAR := 'СУММ(';
+          sFORM_PNZ_IT_2YEAR := 'СУММ(';
+
+          \* Строки по территориям Пустые *\
+          PRSG_CALCTAB_IMAGE.FIRST_ROW( case when sROW = ROW_SERV_ then ROW_SERV_TR_NULL_
+                                             when sROW = ROW_WORK_ then ROW_WORK_TR_NULL_ end,
+                                        rROW_TR_NULL,rROW_PNZ_NULL.ROW_ID );
+          loop
+            READ_SW
+            (
+              nTYPE_WORK => case when sROW = ROW_SERV_ then TYPE_SERV_
+                                 when sROW = ROW_WORK_ then TYPE_WORK_ end,
+              nRN        => rROW_TR_NULL.ROW_SOURCE,
+              rSW        => rTR_NULL
+            );
+
+            \* Формулы итого по ПНЗ *\
+            if sFORM_PNZ_IT_YEAR = 'СУММ(' then
+              sFORM_PNZ_IT_YEAR  := sFORM_PNZ_IT_YEAR||PRSG_CALCTAB_IMAGE.ADDRESS( nCOL_D_YEAR, rROW_TR_NULL.ROW_ID );
+              sFORM_PNZ_IT_1YEAR := sFORM_PNZ_IT_1YEAR||PRSG_CALCTAB_IMAGE.ADDRESS( nCOL_D_1YEAR, rROW_TR_NULL.ROW_ID );
+              sFORM_PNZ_IT_2YEAR := sFORM_PNZ_IT_2YEAR||PRSG_CALCTAB_IMAGE.ADDRESS( nCOL_D_2YEAR, rROW_TR_NULL.ROW_ID );
+            else
+              sFORM_PNZ_IT_YEAR  := sFORM_PNZ_IT_YEAR||';'||PRSG_CALCTAB_IMAGE.ADDRESS( nCOL_D_YEAR, rROW_TR_NULL.ROW_ID );
+              sFORM_PNZ_IT_1YEAR := sFORM_PNZ_IT_1YEAR||';'||PRSG_CALCTAB_IMAGE.ADDRESS( nCOL_D_1YEAR, rROW_TR_NULL.ROW_ID );
+              sFORM_PNZ_IT_2YEAR := sFORM_PNZ_IT_2YEAR||';'||PRSG_CALCTAB_IMAGE.ADDRESS( nCOL_D_2YEAR, rROW_TR_NULL.ROW_ID );
+            end if;
+
+           \* PRSG_CALCTAB_IMAGE.WRITE
+            (
+              nCOLUMN_ID      => nCOL_DET_OR_TRWRK,
+              nROW_ID         => rROW_TR_NULL.ROW_ID,
+              sVALUE          => case when rTR_NULL.GZW_RN is not null then
+                                      rTR_NULL.TRWRK_CODE||' - '||rTR_NULL.TRWRK_NAME
+                                 else null end,
+              sATTRIBUTE      => sATTRIBUTE3,
+              bPROTECT        => bPROTECT
+            );*\
+
+            if ( not PRSG_CALCTAB_IMAGE.NEXT_ROW(rROW_TR_NULL) ) then
+              exit;
+            end if;
+          end loop;
+
+          \* Формулы итого по ПНЗ *\
+          sFORM_PNZ_IT_YEAR  := sFORM_PNZ_IT_YEAR||')';
+          sFORM_PNZ_IT_1YEAR := sFORM_PNZ_IT_1YEAR||')';
+          sFORM_PNZ_IT_2YEAR := sFORM_PNZ_IT_2YEAR||')';
+
+         \* PRSG_CALCTAB_IMAGE.WRITE_NUM
+          (
+            nCOLUMN_ID      => nCOL_D_YEAR,
+            nROW_ID         => nROW_PNZ_NULL_ID,
+            nVALUE          => null,
+            sATTRIBUTE      => sATTRIBUTE3,
+            bPROTECT        => true,
+            sFORMULA        => case when nCOUNT_FPDPPGZWPNZD = 1 then null else sFORM_PNZ_IT_YEAR end
+          );
+
+          PRSG_CALCTAB_IMAGE.WRITE_NUM
+          (
+            nCOLUMN_ID      => nCOL_D_1YEAR,
+            nROW_ID         => nROW_PNZ_NULL_ID,
+            nVALUE          => null,
+            sATTRIBUTE      => sATTRIBUTE3,
+            bPROTECT        => true,
+            sFORMULA        => case when nCOUNT_FPDPPGZWPNZD = 1 then null else sFORM_PNZ_IT_1YEAR end
+          );
+
+          PRSG_CALCTAB_IMAGE.WRITE_NUM
+          (
+            nCOLUMN_ID      => nCOL_D_2YEAR,
+            nROW_ID         => nROW_PNZ_NULL_ID,
+            nVALUE          => null,
+            sATTRIBUTE      => sATTRIBUTE3,
+            bPROTECT        => true,
+            sFORMULA        => case when nCOUNT_FPDPPGZWPNZD = 1 then null else sFORM_PNZ_IT_2YEAR end
+          );*\
+
+          if ( not PRSG_CALCTAB_IMAGE.NEXT_ROW(rROW_PNZ_NULL) ) then
+            exit;
+          end if;
+        end loop;
+      end if;
+
+      \* Формулы итого по услуге/работе *\
+      sFORM_SW_IT_YEAR  := sFORM_SW_IT_YEAR||')';
+      sFORM_SW_IT_1YEAR := sFORM_SW_IT_1YEAR||')';
+      sFORM_SW_IT_2YEAR := sFORM_SW_IT_2YEAR||')';
+
+     \* \* текущий год *\
+      PRSG_CALCTAB_IMAGE.WRITE_NUM
+      (
+        nCOLUMN_ID      => nCOL_D_YEAR,
+        nROW_ID         => nROW_SRV_WRK_ID,
+        nVALUE          => null,
+        sATTRIBUTE      => sATTRIBUTE4,
+        bPROTECT        => true,
+        sFORMULA        => sFORM_SW_IT_YEAR
+      );
+      \* первый год *\
+      PRSG_CALCTAB_IMAGE.WRITE_NUM
+      (
+        nCOLUMN_ID      => nCOL_D_1YEAR,
+        nROW_ID         => nROW_SRV_WRK_ID,
+        nVALUE          => null,
+        sATTRIBUTE      => sATTRIBUTE4,
+        bPROTECT        => true,
+        sFORMULA        => sFORM_SW_IT_1YEAR
+      );
+      \* второй год *\
+      PRSG_CALCTAB_IMAGE.WRITE_NUM
+      (
+        nCOLUMN_ID      => nCOL_D_2YEAR,
+        nROW_ID         => nROW_SRV_WRK_ID,
+        nVALUE          => null,
+        sATTRIBUTE      => sATTRIBUTE4,
+        bPROTECT        => true,
+        sFORMULA        => sFORM_SW_IT_2YEAR
+      );*\
+
+      \* Зануляем итоговые строки по работе с детализацией *\
+      sFORM_WORK_IT_YEAR  := null;
+      sFORM_WORK_IT_1YEAR := null;
+      sFORM_WORK_IT_2YEAR := null;
+
+      \* Запоминаем РН услуги/работы *\
+      nGZW_RN_PREV := rSERV_WORK.GZW_RN;
+
+      if ( not PRSG_CALCTAB_IMAGE.NEXT_ROW(rROW_SW) ) then
+        exit;
+      end if;
+    end loop;
+
+    if sROW = ROW_WORK_ and PKG_CONTVALLOC.COUNT_( tROW_ORGD ) > 0 then
+      \*GET_FORMULA_WRK_OGRD_0( tROW_ORGD, nCOL_D_YEAR, sFORM_WORK_IT_YEAR );
+      GET_FORMULA_WRK_OGRD_0( tROW_ORGD, nCOL_D_1YEAR, sFORM_WORK_IT_1YEAR );
+      GET_FORMULA_WRK_OGRD_0( tROW_ORGD, nCOL_D_2YEAR, sFORM_WORK_IT_2YEAR );
+
+      \* текущий год *\
+      PRSG_CALCTAB_IMAGE.WRITE_NUM
+      (
+        nCOLUMN_ID      => nCOL_D_YEAR,
+        nROW_ID         => nROW_WRK_PREV_ID,
+        nVALUE          => null,
+        sATTRIBUTE      => sATTRIBUTE4,
+        bPROTECT        => true,
+        sFORMULA        => sFORM_WORK_IT_YEAR
+      );
+      \* первый год *\
+      PRSG_CALCTAB_IMAGE.WRITE_NUM
+      (
+        nCOLUMN_ID      => nCOL_D_1YEAR,
+        nROW_ID         => nROW_WRK_PREV_ID,
+        nVALUE          => null,
+        sATTRIBUTE      => sATTRIBUTE4,
+        bPROTECT        => true,
+        sFORMULA        => sFORM_WORK_IT_1YEAR
+      );
+      \* второй год *\
+      PRSG_CALCTAB_IMAGE.WRITE_NUM
+      (
+        nCOLUMN_ID      => nCOL_D_2YEAR,
+        nROW_ID         => nROW_WRK_PREV_ID,
+        nVALUE          => null,
+        sATTRIBUTE      => sATTRIBUTE4,
+        bPROTECT        => true,
+        sFORMULA        => sFORM_WORK_IT_2YEAR
+      ); *\
+      null;
+    end if;
+    \*sFORM_SW_ALL_YEAR  := sFORM_SW_ALL_YEAR||')';
+    sFORM_SW_ALL_1YEAR := sFORM_SW_ALL_1YEAR||')';
+    sFORM_SW_ALL_2YEAR := sFORM_SW_ALL_2YEAR||')';
+
+     PRSG_CALCTAB_IMAGE.WRITE_NUM
+      (
+        nCOLUMN_ID      => nCOL_D_YEAR,
+        nROW_ID         => PRSG_CALCTAB_IMAGE.ROW_ID( sROW_NAME => case when sROW = ROW_SERV_ then 'СтрокаУслугиВсего'
+                                                  when sROW = ROW_WORK_ then 'СтрокаРаботыВсего' end),
+        nVALUE          => null,
+        sATTRIBUTE      => sATTRIBUTE4,
+        bPROTECT        => true,
+        sFORMULA        => sFORM_SW_ALL_YEAR
+      );
+      PRSG_CALCTAB_IMAGE.WRITE_NUM
+      (
+        nCOLUMN_ID      => nCOL_D_1YEAR,
+        nROW_ID         => PRSG_CALCTAB_IMAGE.ROW_ID( sROW_NAME => case when sROW = ROW_SERV_ then 'СтрокаУслугиВсего'
+                                                  when sROW = ROW_WORK_ then 'СтрокаРаботыВсего' end),
+        nVALUE          => null,
+        sATTRIBUTE      => sATTRIBUTE4,
+        bPROTECT        => true,
+        sFORMULA        => sFORM_SW_ALL_1YEAR
+      );
+      PRSG_CALCTAB_IMAGE.WRITE_NUM
+      (
+        nCOLUMN_ID      => nCOL_D_2YEAR,
+        nROW_ID         => PRSG_CALCTAB_IMAGE.ROW_ID( sROW_NAME => case when sROW = ROW_SERV_ then 'СтрокаУслугиВсего'
+                                                  when sROW = ROW_WORK_ then 'СтрокаРаботыВсего' end),
+        nVALUE          => null,
+        sATTRIBUTE      => sATTRIBUTE4,
+        bPROTECT        => true,
+        sFORMULA        => sFORM_SW_ALL_2YEAR
+      );*\
+
+  \*сген - салатовый, салатовый, салатовый, голубой*\
+  if nTYPE = 0 then
+    sATTRIBUTE1:='Font.Name=Calibri;Interior.ColorIndex=35;VerticalAlignment=xlVAlignTop;HorizontalAlignment=xlHAlignCenter;Border(Around).LineStyle=xlContinuous';
+    sATTRIBUTE2:='Font.Name=Calibri;Interior.ColorIndex=35;VerticalAlignment=xlVAlignTop;HorizontalAlignment=xlHAlignCenter;Border(Around).LineStyle=xlContinuous';
+    sATTRIBUTE3:='Font.Name=Calibri;Interior.ColorIndex=35;VerticalAlignment=xlVAlignTop;HorizontalAlignment=xlHAlignCenter;Border(Around).LineStyle=xlContinuous';
+    sATTRIBUTE4:='Font.Name=Calibri;Interior.ColorIndex=20;VerticalAlignment=xlVAlignTop;HorizontalAlignment=xlHAlignCenter;Border(Around).LineStyle=xlContinuous';
+
+  \*тер сумма - персиковый, белый, персиковый, голубой*\
+  elsif nTYPE = 1  then
+    sATTRIBUTE1:='Font.Name=Calibri;Interior.ColorIndex=40;VerticalAlignment=xlVAlignTop;HorizontalAlignment=xlHAlignCenter;Border(Around).LineStyle=xlContinuous';
+    sATTRIBUTE2:='Font.Name=Calibri;Interior.ColorIndex=0;VerticalAlignment=xlVAlignTop;HorizontalAlignment=xlHAlignCenter;Border(Around).LineStyle=xlContinuous';
+    sATTRIBUTE3:='Font.Name=Calibri;Interior.ColorIndex=40;VerticalAlignment=xlVAlignTop;HorizontalAlignment=xlHAlignCenter;Border(Around).LineStyle=xlContinuous';
+    sATTRIBUTE4:='Font.Name=Calibri;Interior.ColorIndex=20;VerticalAlignment=xlVAlignTop;HorizontalAlignment=xlHAlignCenter;Border(Around).LineStyle=xlContinuous';
+
+  \*тер - персиковый, белый, кремовый, белый*\
+  elsif nTYPE = 2  then
+    sATTRIBUTE1:='Font.Name=Calibri;Interior.ColorIndex=40;VerticalAlignment=xlVAlignTop;HorizontalAlignment=xlHAlignCenter;Border(Around).LineStyle=xlContinuous';
+    sATTRIBUTE2:='Font.Name=Calibri;Interior.ColorIndex=0;VerticalAlignment=xlVAlignTop;HorizontalAlignment=xlHAlignCenter;Border(Around).LineStyle=xlContinuous';
+    sATTRIBUTE3:='Font.Name=Calibri;Interior.ColorIndex=19;VerticalAlignment=xlVAlignTop;HorizontalAlignment=xlHAlignCenter;Border(Around).LineStyle=xlContinuous';
+    sATTRIBUTE4:='Font.Name=Calibri;Interior.ColorIndex=0;VerticalAlignment=xlVAlignTop;HorizontalAlignment=xlHAlignCenter;Border(Around).LineStyle=xlContinuous';
+
+   \*дет итог - серый, серый, серый, серый*\
+  elsif nTYPE = 3  then
+    sATTRIBUTE1:='Font.Name=Calibri;Interior.ColorIndex=24;VerticalAlignment=xlVAlignTop;HorizontalAlignment=xlHAlignCenter;Border(Around).LineStyle=xlContinuous';
+    sATTRIBUTE2:='Font.Name=Calibri;Interior.ColorIndex=24;VerticalAlignment=xlVAlignTop;HorizontalAlignment=xlHAlignCenter;Border(Around).LineStyle=xlContinuous';
+    sATTRIBUTE3:='Font.Name=Calibri;Interior.ColorIndex=24;VerticalAlignment=xlVAlignTop;HorizontalAlignment=xlHAlignCenter;Border(Around).LineStyle=xlContinuous';
+    sATTRIBUTE4:='Font.Name=Calibri;Interior.ColorIndex=24;VerticalAlignment=xlVAlignTop;HorizontalAlignment=xlHAlignCenter;Border(Around).LineStyle=xlContinuous';
+
+  end if;
+
+   end;*/
+
+  procedure DO_BEFORE_SHEET
+  (
+    NTYPE    in number,
+    SROW     in varchar2,
+    BPROTECT in boolean
+  ) as
+
+    RROW_PNZ      PRSG_CALCTAB.TCURSOR;
+    RROW_TR       PRSG_CALCTAB.TCURSOR;
+    RROW_PNZ_NULL PRSG_CALCTAB.TCURSOR;
+    RROW_TR_NULL  PRSG_CALCTAB.TCURSOR;
+    BRUN          boolean := true;
+
+    RSERV_WORK TSW;
+    RPNZ       TSW;
+    RTR        TSW;
+    RPNZ_NULL  TSW;
+    RTR_NULL   TSW;
+    RROW_SW    PRSG_CALCTAB.TCURSOR;
+    NRN        PKG_STD.TREF;
+    BTRUE      boolean := true;
+
+    SATTRIBUTE1 PKG_STD.TSTRING; -- доп. атрибуты 1 группы (колонки 1-2)
+    SATTRIBUTE2 PKG_STD.TSTRING; -- доп. атрибуты 2 группы (колонки 3-5)
+    SATTRIBUTE3 PKG_STD.TSTRING; -- доп. атрибуты 3 группы (колонки 6)
+    SATTRIBUTE4 PKG_STD.TSTRING; -- доп. атрибуты 4 группы (колонки 7-9)
+
+    -- формулы всего по услугам/работам
+    SFORM_SW_ALL_YEAR  PKG_STD.TSTRING;
+    SFORM_SW_ALL_1YEAR PKG_STD.TSTRING;
+    SFORM_SW_ALL_2YEAR PKG_STD.TSTRING;
+    -- формулы итого по услуге/работе
+    SFORM_SW_IT_YEAR  PKG_STD.TSTRING;
+    SFORM_SW_IT_1YEAR PKG_STD.TSTRING;
+    SFORM_SW_IT_2YEAR PKG_STD.TSTRING;
+    -- формулы итого по ПНЗ
+    SFORM_PNZ_IT_YEAR  PKG_STD.TSTRING;
+    SFORM_PNZ_IT_1YEAR PKG_STD.TSTRING;
+    SFORM_PNZ_IT_2YEAR PKG_STD.TSTRING;
+    -- формулы итого по работе с детализацией
+    SFORM_WORK_IT_YEAR  PKG_STD.TSTRING;
+    SFORM_WORK_IT_1YEAR PKG_STD.TSTRING;
+    SFORM_WORK_IT_2YEAR PKG_STD.TSTRING;
+
+    NROW_WRK_PREV_ID PKG_STD.TREF;
+    TROW_ORGD        PKG_CONTVALLOC.TCONTAINER;
+
+    NCOL_PP_ID          PKG_STD.TREF;
+    NCOL_WORKNAME_ID    PKG_STD.TREF;
+    NCOL_COSTNAME_ID    PKG_STD.TREF;
+    NCOL_APPOINTMENT_ID PKG_STD.TREF;
+    NCOL_RATIONALE_ID   PKG_STD.TREF;
+    NCOL_DET_OR_TRWRK   PKG_STD.TREF;
+    NCOL_D_YEAR         PKG_STD.TREF;
+    NCOL_D_1YEAR        PKG_STD.TREF;
+    NCOL_D_2YEAR        PKG_STD.TREF;
+
+    NGZW_RN_PREV     PKG_STD.TREF;
+    NROW_SRV_WRK_ID  PKG_STD.TREF;
+    NROW_PNZ_ID      PKG_STD.TREF;
+    NROW_PNZ_NULL_ID PKG_STD.TREF;
+
+    NCOUNT_TRWRK        integer := 0;
+    NCOUNT_FPDPPGZWPNZD integer := 0;
+    NORGD_EXISTS        integer := 0;
+  begin
+    /* Очищаем контейнер */
+    PKG_CONTVALLOC.PURGE(TROW_ORGD);
+
+    /* определение записи */
+    NRN := PRSG_CALCTAB.DOCUMENT();
+
+    /* Определение идентификаторов столбцов */
+    NCOL_PP_ID          := PRSG_CALCTAB_IMAGE.COLUMN_ID(SCOLUMN_NAME => COLUMN_PP_);
+    NCOL_WORKNAME_ID    := PRSG_CALCTAB_IMAGE.COLUMN_ID(SCOLUMN_NAME => COLUMN_WORKNAME_);
+    NCOL_COSTNAME_ID    := PRSG_CALCTAB_IMAGE.COLUMN_ID(SCOLUMN_NAME => COLUMN_COSTNAME_);
+    NCOL_APPOINTMENT_ID := PRSG_CALCTAB_IMAGE.COLUMN_ID(SCOLUMN_NAME => COLUMN_APPOINTMENT_);
+    NCOL_RATIONALE_ID   := PRSG_CALCTAB_IMAGE.COLUMN_ID(SCOLUMN_NAME => COLUMN_RATIONALE_);
+    NCOL_DET_OR_TRWRK   := PRSG_CALCTAB_IMAGE.COLUMN_ID(SCOLUMN_NAME => COLUMN_DET_OR_TRWRK_);
+    NCOL_D_YEAR         := PRSG_CALCTAB_IMAGE.COLUMN_ID(SCOLUMN_NAME => COLUMN_D_YEAR_);
+    NCOL_D_1YEAR        := PRSG_CALCTAB_IMAGE.COLUMN_ID(SCOLUMN_NAME => COLUMN_D_1YEAR_);
+    NCOL_D_2YEAR        := PRSG_CALCTAB_IMAGE.COLUMN_ID(SCOLUMN_NAME => COLUMN_D_2YEAR_);
+
+    /* Формулы всего по услугам/работам*/
+    SFORM_SW_ALL_YEAR  := 'СУММ(';
+    SFORM_SW_ALL_1YEAR := 'СУММ(';
+    SFORM_SW_ALL_2YEAR := 'СУММ(';
+
+    /* Итоговые строки по услуге/работе */
+    PRSG_CALCTAB_IMAGE.FIRST_ROW(SROW, RROW_SW);
+    loop
+      READ_SW(NTYPE_WORK => case
+                              when SROW = ROW_SERV_ then
+                               TYPE_SERV_
+                              when SROW = ROW_WORK_ then
+                               TYPE_WORK_
+                            end,
+              NRN        => RROW_SW.ROW_SOURCE,
+              RSW        => RSERV_WORK);
+
+      /* определим атрибуты для итоговых строк по услуге/работе */
+      SATTRIBUTE1 := 'Font.Name=Calibri;Interior.ColorIndex=35;VerticalAlignment=xlVAlignTop;HorizontalAlignment=xlHAlignCenter;Border(Around).LineStyle=xlContinuous';
+      SATTRIBUTE2 := 'Font.Name=Calibri;Interior.ColorIndex=20;VerticalAlignment=xlVAlignTop;HorizontalAlignment=xlHAlignCenter;Border(Around).LineStyle=xlContinuous';
+      SATTRIBUTE3 := 'Font.Name=Calibri;Interior.ColorIndex=24;VerticalAlignment=xlVAlignTop;HorizontalAlignment=xlHAlignCenter;Border(Around).LineStyle=xlContinuous';
+
+      /* Проверяем кол-во территорий у данной услуги/работы, у которых заполнено "ПНЗ, детализация" */
+      begin
+        select count(*)
+          into NCOUNT_FPDPPGZWPNZD
+          from (select REF_A01
+                  from CALCTAB_DATA
+                 where type = (case
+                         when SROW = ROW_SERV_ then
+                          TYPE_SERV_TR_
+                         when SROW = ROW_WORK_ then
+                          TYPE_WORK_TR_
+                       end)
+                   and REF_A01 = RSERV_WORK.GZW_RN
+                 group by REF_A01,
+                          REF_A04,
+                          REF_A06);
+      end;
+
+      /* Проверяем кол-во территорий у данной услуги/работы общее (спецификация "ПНЗ") */
+      begin
+        select count(*)
+          into NCOUNT_TRWRK
+          from (select REF_A01
+                  from CALCTAB_DATA
+                 where type = (case
+                         when SROW = ROW_SERV_ then
+                          TYPE_SERV_TR_NULL_
+                         when SROW = ROW_WORK_ then
+                          TYPE_WORK_TR_NULL_
+                       end)
+                   and REF_A01 = RSERV_WORK.GZW_RN
+                 group by REF_A01,
+                          REF_A04,
+                          REF_A06);
+      end;
+
+      if NCOUNT_TRWRK = 0 then
+        select count(*)
+          into NCOUNT_TRWRK
+          from (select REF_A01
+                  from CALCTAB_DATA
+                 where type = (case
+                         when SROW = ROW_SERV_ then
+                          TYPE_SERV_PNZ_NULL_
+                         when SROW = ROW_WORK_ then
+                          TYPE_WORK_PNZ_NULL_
+                       end)
+                   and REF_A01 = RSERV_WORK.GZW_RN
+
+                 group by REF_A01,
+                          REF_A04,
+                          REF_A06);
+      end if;
+
+      NROW_SRV_WRK_ID := PRSG_CALCTAB_IMAGE.ROW_ID(SROW_NAME      => case
+                                                                       when SROW = ROW_SERV_ then
+                                                                        ROW_SERV_IT_
+                                                                       when SROW = ROW_WORK_ then
+                                                                        ROW_WORK_IT_
+                                                                     end,
+                                                   NPARENT_ROW_ID => RROW_SW.ROW_ID);
+
+      /* Формулы Всего по услугам/работам */
+      if SFORM_SW_ALL_YEAR = 'СУММ(' then
+        SFORM_SW_ALL_YEAR  := SFORM_SW_ALL_YEAR || PRSG_CALCTAB_IMAGE.ADDRESS(NCOL_D_YEAR, NROW_SRV_WRK_ID);
+        SFORM_SW_ALL_1YEAR := SFORM_SW_ALL_1YEAR || PRSG_CALCTAB_IMAGE.ADDRESS(NCOL_D_1YEAR, NROW_SRV_WRK_ID);
+        SFORM_SW_ALL_2YEAR := SFORM_SW_ALL_2YEAR || PRSG_CALCTAB_IMAGE.ADDRESS(NCOL_D_2YEAR, NROW_SRV_WRK_ID);
+      else
+        SFORM_SW_ALL_YEAR  := SFORM_SW_ALL_YEAR || ';' || PRSG_CALCTAB_IMAGE.ADDRESS(NCOL_D_YEAR, NROW_SRV_WRK_ID);
+        SFORM_SW_ALL_1YEAR := SFORM_SW_ALL_1YEAR || ';' || PRSG_CALCTAB_IMAGE.ADDRESS(NCOL_D_1YEAR, NROW_SRV_WRK_ID);
+        SFORM_SW_ALL_2YEAR := SFORM_SW_ALL_2YEAR || ';' || PRSG_CALCTAB_IMAGE.ADDRESS(NCOL_D_2YEAR, NROW_SRV_WRK_ID);
+      end if;
+
+      /* Только для работ */
+      if SROW = ROW_WORK_ then
+        NORGD_EXISTS := 0;
+        /* Ищем детализации у данной работы */
+        if RSERV_WORK.ORGD_RN is null then
+          begin
+            select 1
+              into NORGD_EXISTS
+              from CALCTAB_DATA
+             where REF_A01 = RSERV_WORK.GZW_RN
+               and REF_B01 is not null;
+          exception
+            when NO_DATA_FOUND then
+              NORGD_EXISTS := 0;
+            when TOO_MANY_ROWS then
+              NORGD_EXISTS := 1;
+          end;
+        end if;
+
+        if NGZW_RN_PREV is null or NGZW_RN_PREV <> RSERV_WORK.GZW_RN then
+          GET_FORMULA_WRK_OGRD_0(TROW_ORGD, NCOL_D_YEAR, SFORM_WORK_IT_YEAR);
+          GET_FORMULA_WRK_OGRD_0(TROW_ORGD, NCOL_D_1YEAR, SFORM_WORK_IT_1YEAR);
+          GET_FORMULA_WRK_OGRD_0(TROW_ORGD, NCOL_D_2YEAR, SFORM_WORK_IT_2YEAR);
+
+          if NROW_WRK_PREV_ID is not null then
+            /* текущий год */
+            PRSG_CALCTAB_IMAGE.WRITE_NUM(NCOLUMN_ID => NCOL_D_YEAR,
+                                         NROW_ID    => NROW_WRK_PREV_ID,
+                                         NVALUE     => null,
+                                         SATTRIBUTE => case
+                                                         when RSERV_WORK.ORGD_RN is null then
+                                                          SATTRIBUTE1
+                                                         else
+                                                          SATTRIBUTE3
+                                                       end,
+                                         BPROTECT   => BTRUE,
+                                         SFORMULA   => SFORM_WORK_IT_YEAR);
+            /* первый год */
+            PRSG_CALCTAB_IMAGE.WRITE_NUM(NCOLUMN_ID => NCOL_D_1YEAR,
+                                         NROW_ID    => NROW_WRK_PREV_ID,
+                                         NVALUE     => null,
+                                         SATTRIBUTE => case
+                                                         when RSERV_WORK.ORGD_RN is null then
+                                                          SATTRIBUTE1
+                                                         else
+                                                          SATTRIBUTE3
+                                                       end,
+                                         BPROTECT   => BTRUE,
+                                         SFORMULA   => SFORM_WORK_IT_1YEAR);
+            /* второй год */
+            PRSG_CALCTAB_IMAGE.WRITE_NUM(NCOLUMN_ID => NCOL_D_2YEAR,
+                                         NROW_ID    => NROW_WRK_PREV_ID,
+                                         NVALUE     => null,
+                                         SATTRIBUTE => case
+                                                         when RSERV_WORK.ORGD_RN is null then
+                                                          SATTRIBUTE1
+                                                         else
+                                                          SATTRIBUTE3
+                                                       end,
+                                         BPROTECT   => BTRUE,
+                                         SFORMULA   => SFORM_WORK_IT_2YEAR);
+          end if;
+
+          /* Перезаписываем итоговую строку по работе */
+          NROW_WRK_PREV_ID := NROW_SRV_WRK_ID;
+          /* Очищаем контейнер */
+          PKG_CONTVALLOC.PURGE(TROW_ORGD);
+        end if;
+
+        if NGZW_RN_PREV = RSERV_WORK.GZW_RN and RSERV_WORK.ORGD_RN is not null then
+          -- сохраняем номер строки для итоговой формулы
+          PKG_CONTVALLOC.APPENDN(TROW_ORGD, NROW_SRV_WRK_ID);
+        end if;
+      end if;
+
+      PRSG_CALCTAB_IMAGE.WRITE_STR(NCOLUMN_ID => NCOL_PP_ID,
+                                   NROW_ID    => NROW_SRV_WRK_ID,
+                                   SVALUE     => case
+                                                   when RSERV_WORK.GZW_NUM2 is not null then
+                                                    TO_CHAR(RSERV_WORK.GZW_NUM) || '.' || TO_CHAR(RSERV_WORK.GZW_NUM2)
+                                                   else
+                                                    TO_CHAR(RSERV_WORK.GZW_NUM)
+                                                 end,
+                                   SATTRIBUTE => case
+                                                   when NORGD_EXISTS = 0 then
+                                                    SATTRIBUTE1
+                                                   else
+                                                    SATTRIBUTE3
+                                                 end,
+                                   BPROTECT   => BTRUE);
+
+      PRSG_CALCTAB_IMAGE.WRITE_STR(NCOLUMN_ID => NCOL_WORKNAME_ID,
+                                   NROW_ID    => NROW_SRV_WRK_ID,
+                                   SVALUE     => case
+                                                   when RSERV_WORK.ORGD_RN is null then
+                                                    RSERV_WORK.WORKNAME
+                                                   else
+                                                    RSERV_WORK.ORGD_NAME
+                                                 end,
+                                   SATTRIBUTE => case
+                                                   when NORGD_EXISTS = 0 then
+                                                    SATTRIBUTE1
+                                                   else
+                                                    SATTRIBUTE3
+                                                 end,
+                                   BPROTECT   => BTRUE);
+
+      PRSG_CALCTAB_IMAGE.WRITE_STR(NCOLUMN_ID => NCOL_DET_OR_TRWRK,
+                                   NROW_ID    => NROW_SRV_WRK_ID,
+                                   SVALUE     => 'Итоговая строка',
+                                   SATTRIBUTE => case
+                                                   when NORGD_EXISTS = 0 then
+                                                    SATTRIBUTE1
+                                                   else
+                                                    SATTRIBUTE3
+                                                 end,
+                                   BPROTECT   => BTRUE);
+
+      /* Формулы */
+      SFORM_SW_IT_YEAR  := 'СУММ(';
+      SFORM_SW_IT_1YEAR := 'СУММ(';
+      SFORM_SW_IT_2YEAR := 'СУММ(';
+
+      /* Контроль редактирования ячеек */
+      PRSG_CALCTAB_IMAGE.WRITE_STR(NCOLUMN_ID => NCOL_COSTNAME_ID,
+                                   NROW_ID    => NROW_SRV_WRK_ID,
+                                   SVALUE     => null,
+                                   BPROTECT   => BTRUE);
+      PRSG_CALCTAB_IMAGE.WRITE_STR(NCOLUMN_ID => NCOL_APPOINTMENT_ID,
+                                   NROW_ID    => NROW_SRV_WRK_ID,
+                                   SVALUE     => null,
+                                   BPROTECT   => BTRUE);
+      PRSG_CALCTAB_IMAGE.WRITE_STR(NCOLUMN_ID => NCOL_RATIONALE_ID,
+                                   NROW_ID    => NROW_SRV_WRK_ID,
+                                   SVALUE     => null,
+                                   BPROTECT   => BTRUE);
+      /* Настройка атрибутов итоговой строки по услуге/работе */
+      if SROW = ROW_SERV_ or (SROW = ROW_WORK_ and NORGD_EXISTS = 0) then
+        PRSG_CALCTAB_IMAGE.SET_ATTRIBUTE(NCOL_COSTNAME_ID, NROW_SRV_WRK_ID, SATTRIBUTE1);
+        PRSG_CALCTAB_IMAGE.SET_ATTRIBUTE(NCOL_APPOINTMENT_ID, NROW_SRV_WRK_ID, SATTRIBUTE1);
+        PRSG_CALCTAB_IMAGE.SET_ATTRIBUTE(NCOL_RATIONALE_ID, NROW_SRV_WRK_ID, SATTRIBUTE1);
+        PRSG_CALCTAB_IMAGE.SET_ATTRIBUTE(NCOL_D_YEAR, NROW_SRV_WRK_ID, SATTRIBUTE2);
+        PRSG_CALCTAB_IMAGE.SET_ATTRIBUTE(NCOL_D_1YEAR, NROW_SRV_WRK_ID, SATTRIBUTE2);
+        PRSG_CALCTAB_IMAGE.SET_ATTRIBUTE(NCOL_D_2YEAR, NROW_SRV_WRK_ID, SATTRIBUTE2);
+      else
+        PRSG_CALCTAB_IMAGE.SET_ATTRIBUTE(NCOL_COSTNAME_ID, NROW_SRV_WRK_ID, SATTRIBUTE3);
+        PRSG_CALCTAB_IMAGE.SET_ATTRIBUTE(NCOL_APPOINTMENT_ID, NROW_SRV_WRK_ID, SATTRIBUTE3);
+        PRSG_CALCTAB_IMAGE.SET_ATTRIBUTE(NCOL_RATIONALE_ID, NROW_SRV_WRK_ID, SATTRIBUTE3);
+        PRSG_CALCTAB_IMAGE.SET_ATTRIBUTE(NCOL_D_YEAR, NROW_SRV_WRK_ID, SATTRIBUTE3);
+        PRSG_CALCTAB_IMAGE.SET_ATTRIBUTE(NCOL_D_1YEAR, NROW_SRV_WRK_ID, SATTRIBUTE3);
+        PRSG_CALCTAB_IMAGE.SET_ATTRIBUTE(NCOL_D_2YEAR, NROW_SRV_WRK_ID, SATTRIBUTE3);
+      end if;
+
+      /* Строки по ПНЗ */
+      PRSG_CALCTAB_IMAGE.FIRST_ROW(case when SROW = ROW_SERV_ then ROW_SERV_PNZ_ when SROW = ROW_WORK_ then
+                                   ROW_WORK_PNZ_ end,
+                                   RROW_PNZ,
+                                   RROW_SW.ROW_ID);
+      loop
+        READ_SW(NTYPE_WORK => case
+                                when SROW = ROW_SERV_ then
+                                 TYPE_SERV_
+                                when SROW = ROW_WORK_ then
+                                 TYPE_WORK_
+                              end,
+                NRN        => RROW_PNZ.ROW_SOURCE,
+                RSW        => RPNZ);
+
+        NROW_PNZ_ID := PRSG_CALCTAB_IMAGE.ROW_ID(SROW_NAME      => case
+                                                                     when SROW = ROW_SERV_ then
+                                                                      ROW_SERV_PNZ_IT_
+                                                                     when SROW = ROW_WORK_ then
+                                                                      ROW_WORK_PNZ_IT_
+                                                                   end,
+                                                 NPARENT_ROW_ID => RROW_PNZ.ROW_ID);
+        /* определим атрибуты для итоговых строк ПНЗ */
+        SATTRIBUTE1 := 'Font.Name=Calibri;Interior.ColorIndex=40;VerticalAlignment=xlVAlignTop;HorizontalAlignment=xlHAlignCenter;Border(Around).LineStyle=xlContinuous';
+        SATTRIBUTE2 := 'Font.Name=Calibri;Interior.ColorIndex=19;VerticalAlignment=xlVAlignTop;HorizontalAlignment=xlHAlignCenter;Border(Around).LineStyle=xlContinuous';
+        SATTRIBUTE3 := 'Font.Name=Calibri;Interior.ColorIndex=0;VerticalAlignment=xlVAlignTop;HorizontalAlignment=xlHAlignCenter;Border(Around).LineStyle=xlContinuous';
+        SATTRIBUTE4 := 'Font.Name=Calibri;Interior.ColorIndex=20;VerticalAlignment=xlVAlignTop;HorizontalAlignment=xlHAlignCenter;Border(Around).LineStyle=xlContinuous';
+        /* Формулы итого по услуге/работе */
+        if SFORM_SW_IT_YEAR = 'СУММ(' then
+          SFORM_SW_IT_YEAR  := SFORM_SW_IT_YEAR || PRSG_CALCTAB_IMAGE.ADDRESS(NCOL_D_YEAR, NROW_PNZ_ID);
+          SFORM_SW_IT_1YEAR := SFORM_SW_IT_1YEAR || PRSG_CALCTAB_IMAGE.ADDRESS(NCOL_D_1YEAR, NROW_PNZ_ID);
+          SFORM_SW_IT_2YEAR := SFORM_SW_IT_2YEAR || PRSG_CALCTAB_IMAGE.ADDRESS(NCOL_D_2YEAR, NROW_PNZ_ID);
+        else
+          SFORM_SW_IT_YEAR  := SFORM_SW_IT_YEAR || ';' || PRSG_CALCTAB_IMAGE.ADDRESS(NCOL_D_YEAR, NROW_PNZ_ID);
+          SFORM_SW_IT_1YEAR := SFORM_SW_IT_1YEAR || ';' || PRSG_CALCTAB_IMAGE.ADDRESS(NCOL_D_1YEAR, NROW_PNZ_ID);
+          SFORM_SW_IT_2YEAR := SFORM_SW_IT_2YEAR || ';' || PRSG_CALCTAB_IMAGE.ADDRESS(NCOL_D_2YEAR, NROW_PNZ_ID);
+        end if;
+
+        PRSG_CALCTAB_IMAGE.WRITE(NCOLUMN_ID => NCOL_COSTNAME_ID,
+                                 NROW_ID    => NROW_PNZ_ID,
+                                 SVALUE     => RPNZ.D_COSTNAME,
+                                 SATTRIBUTE => SATTRIBUTE3,
+                                 BPROTECT   => BPROTECT);
+
+        PRSG_CALCTAB_IMAGE.WRITE(NCOLUMN_ID => NCOL_APPOINTMENT_ID,
+                                 NROW_ID    => NROW_PNZ_ID,
+                                 SVALUE     => RPNZ.D_APPOINTMENT,
+                                 SATTRIBUTE => SATTRIBUTE3,
+                                 BPROTECT   => BPROTECT);
+
+        PRSG_CALCTAB_IMAGE.WRITE(NCOLUMN_ID => NCOL_RATIONALE_ID,
+                                 NROW_ID    => NROW_PNZ_ID,
+                                 SVALUE     => RPNZ.D_RATIONALE,
+                                 SATTRIBUTE => SATTRIBUTE3,
+                                 BPROTECT   => BPROTECT);
+
+        PRSG_CALCTAB_IMAGE.WRITE(NCOLUMN_ID => NCOL_DET_OR_TRWRK,
+                                 NROW_ID    => NROW_PNZ_ID,
+                                 SVALUE     => null,
+                                 SATTRIBUTE => SATTRIBUTE1,
+                                 BPROTECT   => BTRUE);
+
+        if NCOUNT_FPDPPGZWPNZD = 1 then
+          PRSG_CALCTAB_IMAGE.WRITE(NCOLUMN_ID => NCOL_DET_OR_TRWRK,
+                                   NROW_ID    => NROW_PNZ_ID,
+                                   SVALUE     => case
+                                                   when RPNZ.GZW_RN is not null then
+                                                    RPNZ.TRWRK_CODE || ' - ' || RPNZ.TRWRK_NAME
+                                                   else
+                                                    null
+                                                 end,
+                                   SATTRIBUTE => SATTRIBUTE2,
+                                   BPROTECT   => BTRUE);
+        end if;
+
+        /* Формулы итого по ПНЗ */
+        SFORM_PNZ_IT_YEAR  := 'СУММ(';
+        SFORM_PNZ_IT_1YEAR := 'СУММ(';
+        SFORM_PNZ_IT_2YEAR := 'СУММ(';
+
+        /* Контроль редактирования ячеек */
+        PRSG_CALCTAB_IMAGE.WRITE_STR(NCOLUMN_ID => NCOL_PP_ID,
+                                     NROW_ID    => NROW_PNZ_ID,
+                                     SVALUE     => null,
+                                     BPROTECT   => BTRUE);
+        PRSG_CALCTAB_IMAGE.WRITE_STR(NCOLUMN_ID => NCOL_WORKNAME_ID,
+                                     NROW_ID    => NROW_PNZ_ID,
+                                     SVALUE     => null,
+                                     BPROTECT   => BTRUE);
+        /* */
+        PRSG_CALCTAB_IMAGE.SET_ATTRIBUTE(NCOL_PP_ID, NROW_PNZ_ID, SATTRIBUTE1);
+        PRSG_CALCTAB_IMAGE.SET_ATTRIBUTE(NCOL_WORKNAME_ID, NROW_PNZ_ID, SATTRIBUTE1);
+
+        /* Строки по территориям */
+        PRSG_CALCTAB_IMAGE.FIRST_ROW(case when SROW = ROW_SERV_ then ROW_SERV_TR_ when SROW = ROW_WORK_ then
+                                     ROW_WORK_TR_ end,
+                                     RROW_TR,
+                                     RROW_PNZ.ROW_ID);
+        loop
+          READ_SW(NTYPE_WORK => case
+                                  when SROW = ROW_SERV_ then
+                                   TYPE_SERV_
+                                  when SROW = ROW_WORK_ then
+                                   TYPE_WORK_
+                                end,
+                  NRN        => RROW_TR.ROW_SOURCE,
+                  RSW        => RTR);
+
+          /* Формулы итого по ПНЗ */
+          if SFORM_PNZ_IT_YEAR = 'СУММ(' then
+            SFORM_PNZ_IT_YEAR  := SFORM_PNZ_IT_YEAR || PRSG_CALCTAB_IMAGE.ADDRESS(NCOL_D_YEAR, RROW_TR.ROW_ID);
+            SFORM_PNZ_IT_1YEAR := SFORM_PNZ_IT_1YEAR || PRSG_CALCTAB_IMAGE.ADDRESS(NCOL_D_1YEAR, RROW_TR.ROW_ID);
+            SFORM_PNZ_IT_2YEAR := SFORM_PNZ_IT_2YEAR || PRSG_CALCTAB_IMAGE.ADDRESS(NCOL_D_2YEAR, RROW_TR.ROW_ID);
+          else
+            SFORM_PNZ_IT_YEAR  := SFORM_PNZ_IT_YEAR || ';' || PRSG_CALCTAB_IMAGE.ADDRESS(NCOL_D_YEAR, RROW_TR.ROW_ID);
+            SFORM_PNZ_IT_1YEAR := SFORM_PNZ_IT_1YEAR || ';' || PRSG_CALCTAB_IMAGE.ADDRESS(NCOL_D_1YEAR, RROW_TR.ROW_ID);
+            SFORM_PNZ_IT_2YEAR := SFORM_PNZ_IT_2YEAR || ';' || PRSG_CALCTAB_IMAGE.ADDRESS(NCOL_D_2YEAR, RROW_TR.ROW_ID);
+          end if;
+
+          PRSG_CALCTAB_IMAGE.WRITE_STR(NCOLUMN_ID => NCOL_DET_OR_TRWRK,
+                                       NROW_ID    => RROW_TR.ROW_ID,
+                                       SVALUE     => case
+                                                       when RTR.GZW_RN is not null then
+                                                        RTR.TRWRK_CODE || ' - ' || RTR.TRWRK_NAME
+                                                       else
+                                                        null
+                                                     end,
+                                       SATTRIBUTE => SATTRIBUTE2,
+                                       BPROTECT   => BTRUE);
+
+          PRSG_CALCTAB_IMAGE.WRITE_NUM(NCOLUMN_ID => NCOL_D_YEAR,
+                                       NROW_ID    => RROW_TR.ROW_ID,
+                                       NVALUE     => RTR.D_YEAR,
+                                       SATTRIBUTE => SATTRIBUTE3,
+                                       BPROTECT   => BPROTECT);
+
+          PRSG_CALCTAB_IMAGE.WRITE_NUM(NCOLUMN_ID => NCOL_D_1YEAR,
+                                       NROW_ID    => RROW_TR.ROW_ID,
+                                       NVALUE     => RTR.D_1YEAR,
+                                       SATTRIBUTE => SATTRIBUTE3,
+                                       BPROTECT   => BPROTECT);
+
+          PRSG_CALCTAB_IMAGE.WRITE_NUM(NCOLUMN_ID => NCOL_D_2YEAR,
+                                       NROW_ID    => RROW_TR.ROW_ID,
+                                       NVALUE     => RTR.D_2YEAR,
+                                       SATTRIBUTE => SATTRIBUTE3,
+                                       BPROTECT   => BPROTECT);
+
+          /* Контроль редактирования ячеек */
+          PRSG_CALCTAB_IMAGE.WRITE_STR(NCOLUMN_ID => NCOL_PP_ID,
+                                       NROW_ID    => RROW_TR.ROW_ID,
+                                       SVALUE     => null,
+                                       BPROTECT   => BTRUE);
+          PRSG_CALCTAB_IMAGE.WRITE_STR(NCOLUMN_ID => NCOL_COSTNAME_ID,
+                                       NROW_ID    => RROW_TR.ROW_ID,
+                                       SVALUE     => null,
+                                       BPROTECT   => BTRUE);
+          PRSG_CALCTAB_IMAGE.WRITE_STR(NCOLUMN_ID => NCOL_APPOINTMENT_ID,
+                                       NROW_ID    => RROW_TR.ROW_ID,
+                                       SVALUE     => null,
+                                       BPROTECT   => BTRUE);
+          PRSG_CALCTAB_IMAGE.WRITE_STR(NCOLUMN_ID => NCOL_RATIONALE_ID,
+                                       NROW_ID    => RROW_TR.ROW_ID,
+                                       SVALUE     => null,
+                                       BPROTECT   => BTRUE);
+          PRSG_CALCTAB_IMAGE.WRITE_STR(NCOLUMN_ID => NCOL_WORKNAME_ID,
+                                       NROW_ID    => RROW_TR.ROW_ID,
+                                       SVALUE     => null,
+                                       BPROTECT   => BTRUE);
+          /* */
+          PRSG_CALCTAB_IMAGE.SET_ATTRIBUTE(NCOL_PP_ID, RROW_TR.ROW_ID, SATTRIBUTE1);
+          PRSG_CALCTAB_IMAGE.SET_ATTRIBUTE(NCOL_WORKNAME_ID, RROW_TR.ROW_ID, SATTRIBUTE1);
+          PRSG_CALCTAB_IMAGE.SET_ATTRIBUTE(NCOL_COSTNAME_ID, RROW_TR.ROW_ID, SATTRIBUTE1);
+          PRSG_CALCTAB_IMAGE.SET_ATTRIBUTE(NCOL_APPOINTMENT_ID, RROW_TR.ROW_ID, SATTRIBUTE1);
+          PRSG_CALCTAB_IMAGE.SET_ATTRIBUTE(NCOL_RATIONALE_ID, RROW_TR.ROW_ID, SATTRIBUTE1);
+
+          if (not PRSG_CALCTAB_IMAGE.NEXT_ROW(RROW_TR)) then
+            exit;
+          end if;
+        end loop;
+
+        /* Формулы итого по ПНЗ */
+        SFORM_PNZ_IT_YEAR  := SFORM_PNZ_IT_YEAR || ')';
+        SFORM_PNZ_IT_1YEAR := SFORM_PNZ_IT_1YEAR || ')';
+        SFORM_PNZ_IT_2YEAR := SFORM_PNZ_IT_2YEAR || ')';
+
+        PRSG_CALCTAB_IMAGE.WRITE_NUM(NCOLUMN_ID => NCOL_D_YEAR,
+                                     NROW_ID    => NROW_PNZ_ID,
+                                     NVALUE     => case
+                                                     when NCOUNT_FPDPPGZWPNZD = 1 then
+                                                      RPNZ.D_YEAR
+                                                     else
+                                                      null
+                                                   end,
+                                     SATTRIBUTE => case
+                                                     when NCOUNT_FPDPPGZWPNZD = 1 then
+                                                      SATTRIBUTE3
+                                                     else
+                                                      SATTRIBUTE4
+                                                   end,
+                                     BPROTECT   => case
+                                                     when NCOUNT_FPDPPGZWPNZD = 1 then
+                                                      BPROTECT
+                                                     else
+                                                      BTRUE
+                                                   end,
+                                     SFORMULA   => case
+                                                     when NCOUNT_FPDPPGZWPNZD = 1 then
+                                                      null
+                                                     else
+                                                      SFORM_PNZ_IT_YEAR
+                                                   end);
+
+        PRSG_CALCTAB_IMAGE.WRITE_NUM(NCOLUMN_ID => NCOL_D_1YEAR,
+                                     NROW_ID    => NROW_PNZ_ID,
+                                     NVALUE     => case
+                                                     when NCOUNT_FPDPPGZWPNZD = 1 then
+                                                      RPNZ.D_1YEAR
+                                                     else
+                                                      null
+                                                   end,
+                                     SATTRIBUTE => case
+                                                     when NCOUNT_FPDPPGZWPNZD = 1 then
+                                                      SATTRIBUTE3
+                                                     else
+                                                      SATTRIBUTE4
+                                                   end,
+                                     BPROTECT   => case
+                                                     when NCOUNT_FPDPPGZWPNZD = 1 then
+                                                      BPROTECT
+                                                     else
+                                                      BTRUE
+                                                   end,
+                                     SFORMULA   => case
+                                                     when NCOUNT_FPDPPGZWPNZD = 1 then
+                                                      null
+                                                     else
+                                                      SFORM_PNZ_IT_1YEAR
+                                                   end);
+
+        PRSG_CALCTAB_IMAGE.WRITE_NUM(NCOLUMN_ID => NCOL_D_2YEAR,
+                                     NROW_ID    => NROW_PNZ_ID,
+                                     NVALUE     => case
+                                                     when NCOUNT_FPDPPGZWPNZD = 1 then
+                                                      RPNZ.D_2YEAR
+                                                     else
+                                                      null
+                                                   end,
+                                     SATTRIBUTE => case
+                                                     when NCOUNT_FPDPPGZWPNZD = 1 then
+                                                      SATTRIBUTE3
+                                                     else
+                                                      SATTRIBUTE4
+                                                   end,
+                                     BPROTECT   => case
+                                                     when NCOUNT_FPDPPGZWPNZD = 1 then
+                                                      BPROTECT
+                                                     else
+                                                      BTRUE
+                                                   end,
+                                     SFORMULA   => case
+                                                     when NCOUNT_FPDPPGZWPNZD = 1 then
+                                                      null
+                                                     else
+                                                      SFORM_PNZ_IT_2YEAR
+                                                   end);
+
+        if (not PRSG_CALCTAB_IMAGE.NEXT_ROW(RROW_PNZ)) then
+          exit;
+        end if;
+      end loop;
+
+      if PRSG_CALCTAB.MODE_EDIT() then
+        /* Строки по ПНЗ Пустые */
+        PRSG_CALCTAB_IMAGE.FIRST_ROW(case when SROW = ROW_SERV_ then ROW_SERV_PNZ_NULL_ when SROW = ROW_WORK_ then
+                                     ROW_WORK_PNZ_NULL_ end,
+                                     RROW_PNZ_NULL,
+                                     RROW_SW.ROW_ID);
+        loop
+          READ_SW(NTYPE_WORK => case
+                                  when SROW = ROW_SERV_ then
+                                   TYPE_SERV_
+                                  when SROW = ROW_WORK_ then
+                                   TYPE_WORK_
+                                end,
+                  NRN        => RROW_PNZ_NULL.ROW_SOURCE,
+                  RSW        => RPNZ_NULL);
+
+          NROW_PNZ_NULL_ID := PRSG_CALCTAB_IMAGE.ROW_ID(SROW_NAME      => case
+                                                                            when SROW = ROW_SERV_ then
+                                                                             ROW_SERV_PNZ_IT_NULL_
+                                                                            when SROW = ROW_WORK_ then
+                                                                             ROW_WORK_PNZ_IT_NULL_
+                                                                          end,
+                                                        NPARENT_ROW_ID => RROW_PNZ_NULL.ROW_ID);
+          /* определим атрибуты для итоговых строк ПНЗ */
+          SATTRIBUTE1 := 'Font.Name=Calibri;Interior.ColorIndex=40;VerticalAlignment=xlVAlignTop;HorizontalAlignment=xlHAlignCenter;Border(Around).LineStyle=xlContinuous';
+          SATTRIBUTE2 := 'Font.Name=Calibri;Interior.ColorIndex=19;VerticalAlignment=xlVAlignTop;HorizontalAlignment=xlHAlignCenter;Border(Around).LineStyle=xlContinuous';
+          SATTRIBUTE3 := 'Font.Name=Calibri;Interior.ColorIndex=0;VerticalAlignment=xlVAlignTop;HorizontalAlignment=xlHAlignCenter;Border(Around).LineStyle=xlContinuous';
+          SATTRIBUTE4 := 'Font.Name=Calibri;Interior.ColorIndex=20;VerticalAlignment=xlVAlignTop;HorizontalAlignment=xlHAlignCenter;Border(Around).LineStyle=xlContinuous';
+          /* Формулы итого по услуге/работе */
+          if SFORM_SW_IT_YEAR = 'СУММ(' then
+            SFORM_SW_IT_YEAR  := SFORM_SW_IT_YEAR || PRSG_CALCTAB_IMAGE.ADDRESS(NCOL_D_YEAR, NROW_PNZ_NULL_ID);
+            SFORM_SW_IT_1YEAR := SFORM_SW_IT_1YEAR || PRSG_CALCTAB_IMAGE.ADDRESS(NCOL_D_1YEAR, NROW_PNZ_NULL_ID);
+            SFORM_SW_IT_2YEAR := SFORM_SW_IT_2YEAR || PRSG_CALCTAB_IMAGE.ADDRESS(NCOL_D_2YEAR, NROW_PNZ_NULL_ID);
+          else
+            SFORM_SW_IT_YEAR  := SFORM_SW_IT_YEAR || ';' || PRSG_CALCTAB_IMAGE.ADDRESS(NCOL_D_YEAR, NROW_PNZ_NULL_ID);
+            SFORM_SW_IT_1YEAR := SFORM_SW_IT_1YEAR || ';' || PRSG_CALCTAB_IMAGE.ADDRESS(NCOL_D_1YEAR, NROW_PNZ_NULL_ID);
+            SFORM_SW_IT_2YEAR := SFORM_SW_IT_2YEAR || ';' || PRSG_CALCTAB_IMAGE.ADDRESS(NCOL_D_2YEAR, NROW_PNZ_NULL_ID);
+          end if;
+
+          PRSG_CALCTAB_IMAGE.WRITE(NCOLUMN_ID => NCOL_DET_OR_TRWRK,
+                                   NROW_ID    => NROW_PNZ_NULL_ID,
+                                   SVALUE     => null,
+                                   SATTRIBUTE => SATTRIBUTE1,
+                                   BPROTECT   => BTRUE);
+
+          if NCOUNT_FPDPPGZWPNZD < 2 and NCOUNT_TRWRK < 2 then
+            PRSG_CALCTAB_IMAGE.WRITE(NCOLUMN_ID => NCOL_DET_OR_TRWRK,
+                                     NROW_ID    => NROW_PNZ_NULL_ID,
+                                     SVALUE     => case
+                                                     when RPNZ_NULL.GZW_RN is not null then
+                                                      RPNZ_NULL.TRWRK_CODE || ' - ' || RPNZ_NULL.TRWRK_NAME
+                                                     else
+                                                      null
+                                                   end,
+                                     SATTRIBUTE => case
+                                                     when NCOUNT_FPDPPGZWPNZD < 2 and NCOUNT_TRWRK < 2 then
+                                                      SATTRIBUTE2
+                                                     else
+                                                      SATTRIBUTE1
+                                                   end,
+                                     BPROTECT   => BTRUE);
+          end if;
+
+          /* Формулы итого по ПНЗ */
+          SFORM_PNZ_IT_YEAR  := 'СУММ(';
+          SFORM_PNZ_IT_1YEAR := 'СУММ(';
+          SFORM_PNZ_IT_2YEAR := 'СУММ(';
+
+          /* Контроль редактирования ячеек */
+          PRSG_CALCTAB_IMAGE.WRITE_STR(NCOLUMN_ID => NCOL_PP_ID,
+                                       NROW_ID    => NROW_PNZ_NULL_ID,
+                                       SVALUE     => null,
+                                       BPROTECT   => BTRUE);
+          PRSG_CALCTAB_IMAGE.WRITE_STR(NCOLUMN_ID => NCOL_WORKNAME_ID,
+                                       NROW_ID    => NROW_PNZ_NULL_ID,
+                                       SVALUE     => null,
+                                       BPROTECT   => BTRUE);
+
+          PRSG_CALCTAB_IMAGE.SET_ATTRIBUTE(NCOL_PP_ID, NROW_PNZ_NULL_ID, SATTRIBUTE1);
+          PRSG_CALCTAB_IMAGE.SET_ATTRIBUTE(NCOL_WORKNAME_ID, NROW_PNZ_NULL_ID, SATTRIBUTE1);
+          PRSG_CALCTAB_IMAGE.SET_ATTRIBUTE(NCOL_COSTNAME_ID, NROW_PNZ_NULL_ID, SATTRIBUTE3);
+          PRSG_CALCTAB_IMAGE.SET_ATTRIBUTE(NCOL_APPOINTMENT_ID, NROW_PNZ_NULL_ID, SATTRIBUTE3);
+          PRSG_CALCTAB_IMAGE.SET_ATTRIBUTE(NCOL_RATIONALE_ID, NROW_PNZ_NULL_ID, SATTRIBUTE3);
+
+          /* Строки по территориям Пустые */
+          PRSG_CALCTAB_IMAGE.FIRST_ROW(case when SROW = ROW_SERV_ then ROW_SERV_TR_NULL_ when SROW = ROW_WORK_ then
+                                       ROW_WORK_TR_NULL_ end,
+                                       RROW_TR_NULL,
+                                       RROW_PNZ_NULL.ROW_ID);
+          loop
+            READ_SW(NTYPE_WORK => case
+                                    when SROW = ROW_SERV_ then
+                                     TYPE_SERV_
+                                    when SROW = ROW_WORK_ then
+                                     TYPE_WORK_
+                                  end,
+                    NRN        => RROW_TR_NULL.ROW_SOURCE,
+                    RSW        => RTR_NULL);
+
+            /* Формулы итого по ПНЗ */
+            if SFORM_PNZ_IT_YEAR = 'СУММ(' then
+              SFORM_PNZ_IT_YEAR  := SFORM_PNZ_IT_YEAR || PRSG_CALCTAB_IMAGE.ADDRESS(NCOL_D_YEAR, RROW_TR_NULL.ROW_ID);
+              SFORM_PNZ_IT_1YEAR := SFORM_PNZ_IT_1YEAR || PRSG_CALCTAB_IMAGE.ADDRESS(NCOL_D_1YEAR, RROW_TR_NULL.ROW_ID);
+              SFORM_PNZ_IT_2YEAR := SFORM_PNZ_IT_2YEAR || PRSG_CALCTAB_IMAGE.ADDRESS(NCOL_D_2YEAR, RROW_TR_NULL.ROW_ID);
+            else
+              SFORM_PNZ_IT_YEAR  := SFORM_PNZ_IT_YEAR || ';' ||
+                                    PRSG_CALCTAB_IMAGE.ADDRESS(NCOL_D_YEAR, RROW_TR_NULL.ROW_ID);
+              SFORM_PNZ_IT_1YEAR := SFORM_PNZ_IT_1YEAR || ';' ||
+                                    PRSG_CALCTAB_IMAGE.ADDRESS(NCOL_D_1YEAR, RROW_TR_NULL.ROW_ID);
+              SFORM_PNZ_IT_2YEAR := SFORM_PNZ_IT_2YEAR || ';' ||
+                                    PRSG_CALCTAB_IMAGE.ADDRESS(NCOL_D_2YEAR, RROW_TR_NULL.ROW_ID);
+            end if;
+
+            PRSG_CALCTAB_IMAGE.WRITE(NCOLUMN_ID => NCOL_DET_OR_TRWRK,
+                                     NROW_ID    => RROW_TR_NULL.ROW_ID,
+                                     SVALUE     => case
+                                                     when RTR_NULL.GZW_RN is not null then
+                                                      RTR_NULL.TRWRK_CODE || ' - ' || RTR_NULL.TRWRK_NAME
+                                                     else
+                                                      null
+                                                   end,
+                                     SATTRIBUTE => SATTRIBUTE2,
+                                     BPROTECT   => BTRUE);
+
+            /* Контроль редактирования ячеек */
+            PRSG_CALCTAB_IMAGE.WRITE_STR(NCOLUMN_ID => NCOL_PP_ID,
+                                         NROW_ID    => RROW_TR_NULL.ROW_ID,
+                                         SVALUE     => null,
+                                         BPROTECT   => BTRUE);
+            PRSG_CALCTAB_IMAGE.WRITE_STR(NCOLUMN_ID => NCOL_WORKNAME_ID,
+                                         NROW_ID    => RROW_TR_NULL.ROW_ID,
+                                         SVALUE     => null,
+                                         BPROTECT   => BTRUE);
+
+            /* Контроль редактирования ячеек */
+            PRSG_CALCTAB_IMAGE.WRITE_STR(NCOLUMN_ID => NCOL_PP_ID,
+                                         NROW_ID    => RROW_TR_NULL.ROW_ID,
+                                         SVALUE     => null,
+                                         BPROTECT   => BTRUE);
+            PRSG_CALCTAB_IMAGE.WRITE_STR(NCOLUMN_ID => NCOL_COSTNAME_ID,
+                                         NROW_ID    => RROW_TR_NULL.ROW_ID,
+                                         SVALUE     => null,
+                                         BPROTECT   => BTRUE);
+            PRSG_CALCTAB_IMAGE.WRITE_STR(NCOLUMN_ID => NCOL_APPOINTMENT_ID,
+                                         NROW_ID    => RROW_TR_NULL.ROW_ID,
+                                         SVALUE     => null,
+                                         BPROTECT   => BTRUE);
+            PRSG_CALCTAB_IMAGE.WRITE_STR(NCOLUMN_ID => NCOL_RATIONALE_ID,
+                                         NROW_ID    => RROW_TR_NULL.ROW_ID,
+                                         SVALUE     => null,
+                                         BPROTECT   => BTRUE);
+            PRSG_CALCTAB_IMAGE.WRITE_STR(NCOLUMN_ID => NCOL_WORKNAME_ID,
+                                         NROW_ID    => RROW_TR_NULL.ROW_ID,
+                                         SVALUE     => null,
+                                         BPROTECT   => BTRUE);
+            /* */
+            PRSG_CALCTAB_IMAGE.SET_ATTRIBUTE(NCOL_PP_ID, RROW_TR_NULL.ROW_ID, SATTRIBUTE1);
+            PRSG_CALCTAB_IMAGE.SET_ATTRIBUTE(NCOL_WORKNAME_ID, RROW_TR_NULL.ROW_ID, SATTRIBUTE1);
+            PRSG_CALCTAB_IMAGE.SET_ATTRIBUTE(NCOL_COSTNAME_ID, RROW_TR_NULL.ROW_ID, SATTRIBUTE1);
+            PRSG_CALCTAB_IMAGE.SET_ATTRIBUTE(NCOL_APPOINTMENT_ID, RROW_TR_NULL.ROW_ID, SATTRIBUTE1);
+            PRSG_CALCTAB_IMAGE.SET_ATTRIBUTE(NCOL_RATIONALE_ID, RROW_TR_NULL.ROW_ID, SATTRIBUTE1);
+            PRSG_CALCTAB_IMAGE.SET_ATTRIBUTE(NCOL_D_YEAR, RROW_TR_NULL.ROW_ID, SATTRIBUTE3);
+            PRSG_CALCTAB_IMAGE.SET_ATTRIBUTE(NCOL_D_1YEAR, RROW_TR_NULL.ROW_ID, SATTRIBUTE3);
+            PRSG_CALCTAB_IMAGE.SET_ATTRIBUTE(NCOL_D_2YEAR, RROW_TR_NULL.ROW_ID, SATTRIBUTE3);
+
+            if (not PRSG_CALCTAB_IMAGE.NEXT_ROW(RROW_TR_NULL)) then
+              exit;
+            end if;
+          end loop;
+
+          /* Формулы итого по ПНЗ */
+          SFORM_PNZ_IT_YEAR  := SFORM_PNZ_IT_YEAR || ')';
+          SFORM_PNZ_IT_1YEAR := SFORM_PNZ_IT_1YEAR || ')';
+          SFORM_PNZ_IT_2YEAR := SFORM_PNZ_IT_2YEAR || ')';
+
+          PRSG_CALCTAB_IMAGE.WRITE_NUM(NCOLUMN_ID => NCOL_D_YEAR,
+                                       NROW_ID    => NROW_PNZ_NULL_ID,
+                                       NVALUE     => null,
+                                       SATTRIBUTE => case
+                                                       when NCOUNT_FPDPPGZWPNZD < 2 and NCOUNT_TRWRK < 2 then
+                                                        SATTRIBUTE3
+                                                       else
+                                                        SATTRIBUTE4
+                                                     end,
+                                       BPROTECT   => case
+                                                       when NCOUNT_FPDPPGZWPNZD < 2 and NCOUNT_TRWRK < 2 then
+                                                        BPROTECT
+                                                       else
+                                                        BTRUE
+                                                     end,
+                                       SFORMULA   => case
+                                                       when NCOUNT_FPDPPGZWPNZD < 2 and NCOUNT_TRWRK < 2 then
+                                                        null
+                                                       else
+                                                        SFORM_PNZ_IT_YEAR
+                                                     end);
+
+          PRSG_CALCTAB_IMAGE.WRITE_NUM(NCOLUMN_ID => NCOL_D_1YEAR,
+                                       NROW_ID    => NROW_PNZ_NULL_ID,
+                                       NVALUE     => null,
+                                       SATTRIBUTE => case
+                                                       when NCOUNT_FPDPPGZWPNZD < 2 and NCOUNT_TRWRK < 2 then
+                                                        SATTRIBUTE3
+                                                       else
+                                                        SATTRIBUTE4
+                                                     end,
+                                       BPROTECT   => case
+                                                       when NCOUNT_FPDPPGZWPNZD < 2 and NCOUNT_TRWRK < 2 then
+                                                        BPROTECT
+                                                       else
+                                                        BTRUE
+                                                     end,
+                                       SFORMULA   => case
+                                                       when NCOUNT_FPDPPGZWPNZD < 2 and NCOUNT_TRWRK < 2 then
+                                                        null
+                                                       else
+                                                        SFORM_PNZ_IT_1YEAR
+                                                     end);
+
+          PRSG_CALCTAB_IMAGE.WRITE_NUM(NCOLUMN_ID => NCOL_D_2YEAR,
+                                       NROW_ID    => NROW_PNZ_NULL_ID,
+                                       NVALUE     => null,
+                                       SATTRIBUTE => case
+                                                       when NCOUNT_FPDPPGZWPNZD < 2 and NCOUNT_TRWRK < 2 then
+                                                        SATTRIBUTE3
+                                                       else
+                                                        SATTRIBUTE4
+                                                     end,
+                                       BPROTECT   => case
+                                                       when NCOUNT_FPDPPGZWPNZD < 2 and NCOUNT_TRWRK < 2 then
+                                                        BPROTECT
+                                                       else
+                                                        BTRUE
+                                                     end,
+                                       SFORMULA   => case
+                                                       when NCOUNT_FPDPPGZWPNZD < 2 and NCOUNT_TRWRK < 2 then
+                                                        null
+                                                       else
+                                                        SFORM_PNZ_IT_2YEAR
+                                                     end);
+
+          if (not PRSG_CALCTAB_IMAGE.NEXT_ROW(RROW_PNZ_NULL)) then
+            exit;
+          end if;
+        end loop;
+      end if;
+
+      /* Формулы итого по услуге/работе */
+      SFORM_SW_IT_YEAR  := SFORM_SW_IT_YEAR || ')';
+      SFORM_SW_IT_1YEAR := SFORM_SW_IT_1YEAR || ')';
+      SFORM_SW_IT_2YEAR := SFORM_SW_IT_2YEAR || ')';
+
+      /* текущий год */
+      PRSG_CALCTAB_IMAGE.WRITE_NUM(NCOLUMN_ID => NCOL_D_YEAR,
+                                   NROW_ID    => NROW_SRV_WRK_ID,
+                                   NVALUE     => null,
+                                   SATTRIBUTE => null,
+                                   BPROTECT   => true,
+                                   SFORMULA   => SFORM_SW_IT_YEAR);
+      /* первый год */
+      PRSG_CALCTAB_IMAGE.WRITE_NUM(NCOLUMN_ID => NCOL_D_1YEAR,
+                                   NROW_ID    => NROW_SRV_WRK_ID,
+                                   NVALUE     => null,
+                                   SATTRIBUTE => null,
+                                   BPROTECT   => true,
+                                   SFORMULA   => SFORM_SW_IT_1YEAR);
+      /* второй год */
+      PRSG_CALCTAB_IMAGE.WRITE_NUM(NCOLUMN_ID => NCOL_D_2YEAR,
+                                   NROW_ID    => NROW_SRV_WRK_ID,
+                                   NVALUE     => null,
+                                   SATTRIBUTE => null,
+                                   BPROTECT   => true,
+                                   SFORMULA   => SFORM_SW_IT_2YEAR);
+
+      /* Зануляем итоговые строки по работе с детализацией */
+      SFORM_WORK_IT_YEAR  := null;
+      SFORM_WORK_IT_1YEAR := null;
+      SFORM_WORK_IT_2YEAR := null;
+
+      /* Запоминаем РН услуги/работы */
+      NGZW_RN_PREV := RSERV_WORK.GZW_RN;
+
+      if (not PRSG_CALCTAB_IMAGE.NEXT_ROW(RROW_SW)) then
+        exit;
+      end if;
+    end loop;
+
+    if SROW = ROW_WORK_ and PKG_CONTVALLOC.COUNT_(TROW_ORGD) > 0 then
+      GET_FORMULA_WRK_OGRD_0(TROW_ORGD, NCOL_D_YEAR, SFORM_WORK_IT_YEAR);
+      GET_FORMULA_WRK_OGRD_0(TROW_ORGD, NCOL_D_1YEAR, SFORM_WORK_IT_1YEAR);
+      GET_FORMULA_WRK_OGRD_0(TROW_ORGD, NCOL_D_2YEAR, SFORM_WORK_IT_2YEAR);
+
+      /* текущий год */
+      PRSG_CALCTAB_IMAGE.WRITE_NUM(NCOLUMN_ID => NCOL_D_YEAR,
+                                   NROW_ID    => NROW_WRK_PREV_ID,
+                                   NVALUE     => null,
+                                   SATTRIBUTE => null,
+                                   BPROTECT   => true,
+                                   SFORMULA   => SFORM_WORK_IT_YEAR);
+      /* первый год */
+      PRSG_CALCTAB_IMAGE.WRITE_NUM(NCOLUMN_ID => NCOL_D_1YEAR,
+                                   NROW_ID    => NROW_WRK_PREV_ID,
+                                   NVALUE     => null,
+                                   SATTRIBUTE => null,
+                                   BPROTECT   => true,
+                                   SFORMULA   => SFORM_WORK_IT_1YEAR);
+      /* второй год */
+      PRSG_CALCTAB_IMAGE.WRITE_NUM(NCOLUMN_ID => NCOL_D_2YEAR,
+                                   NROW_ID    => NROW_WRK_PREV_ID,
+                                   NVALUE     => null,
+                                   SATTRIBUTE => null,
+                                   BPROTECT   => true,
+                                   SFORMULA   => SFORM_WORK_IT_2YEAR);
+    end if;
+    SFORM_SW_ALL_YEAR  := SFORM_SW_ALL_YEAR || ')';
+    SFORM_SW_ALL_1YEAR := SFORM_SW_ALL_1YEAR || ')';
+    SFORM_SW_ALL_2YEAR := SFORM_SW_ALL_2YEAR || ')';
+
+    PRSG_CALCTAB_IMAGE.WRITE_NUM(NCOLUMN_ID => NCOL_D_YEAR,
+                                 NROW_ID    => PRSG_CALCTAB_IMAGE.ROW_ID(SROW_NAME => case
+                                                                                        when SROW = ROW_SERV_ then
+                                                                                         'СтрокаУслугиВсего'
+                                                                                        when SROW = ROW_WORK_ then
+                                                                                         'СтрокаРаботыВсего'
+                                                                                      end),
+                                 NVALUE     => null,
+                                 SATTRIBUTE => null,
+                                 BPROTECT   => true,
+                                 SFORMULA   => SFORM_SW_ALL_YEAR);
+    PRSG_CALCTAB_IMAGE.WRITE_NUM(NCOLUMN_ID => NCOL_D_1YEAR,
+                                 NROW_ID    => PRSG_CALCTAB_IMAGE.ROW_ID(SROW_NAME => case
+                                                                                        when SROW = ROW_SERV_ then
+                                                                                         'СтрокаУслугиВсего'
+                                                                                        when SROW = ROW_WORK_ then
+                                                                                         'СтрокаРаботыВсего'
+                                                                                      end),
+                                 NVALUE     => null,
+                                 SATTRIBUTE => null,
+                                 BPROTECT   => true,
+                                 SFORMULA   => SFORM_SW_ALL_1YEAR);
+    PRSG_CALCTAB_IMAGE.WRITE_NUM(NCOLUMN_ID => NCOL_D_2YEAR,
+                                 NROW_ID    => PRSG_CALCTAB_IMAGE.ROW_ID(SROW_NAME => case
+                                                                                        when SROW = ROW_SERV_ then
+                                                                                         'СтрокаУслугиВсего'
+                                                                                        when SROW = ROW_WORK_ then
+                                                                                         'СтрокаРаботыВсего'
+                                                                                      end),
+                                 NVALUE     => null,
+                                 SATTRIBUTE => null,
+                                 BPROTECT   => true,
+                                 SFORMULA   => SFORM_SW_ALL_2YEAR);
+
+  end DO_BEFORE_SHEET;
+
+  /* процедура, выполняемая перед открытием книги (для заголовка) */
+  procedure DO_BEFORE_TITLE(RPER TPER) as
+    SCOL      constant PKG_STD.TSTRING := 'Столбец1_8';
+    SROW_YEAR constant PKG_STD.TSTRING := 'Строка2';
+    SROW_ORG  constant PKG_STD.TSTRING := 'Строка3';
+    STITLE PKG_STD.TSTRING := 'затрат на прочие общехозяйственные нужды на плановый период ' || RPER.PRD_CODE;
+  begin
+    PRSG_CALCTAB_IMAGE.WRITE_STR(NCOLUMN_ID => PRSG_CALCTAB_IMAGE.COLUMN_ID(SCOL),
+                                 NROW_ID    => PRSG_CALCTAB_IMAGE.ROW_ID(SROW_YEAR),
+                                 SVALUE     => STITLE);
+    PRSG_CALCTAB_IMAGE.WRITE_STR(NCOLUMN_ID => PRSG_CALCTAB_IMAGE.COLUMN_ID(SCOL),
+                                 NROW_ID    => PRSG_CALCTAB_IMAGE.ROW_ID(SROW_ORG),
+                                 SVALUE     => RPER.JUR_NAME);
+  end DO_BEFORE_TITLE;
+
+  /* процедура, выполняемая перед открытием книги */
+  procedure DO_BEFORE as
+    BPROTECT boolean;
+    BTRUE    boolean := true;
+    RPER     TPER;
+
+    RWORK     TSW;
+    RCELL_FR  TCELL;
+    RCELL_TO  TCELL;
+    RROW_WORK PRSG_CALCTAB.TCURSOR;
+    NRN       PKG_STD.TREF;
+    BRN       boolean;
+
+    -- потом перенести отсюда в свою процедуру
+    SFORMULA   PKG_STD.TSTRING;
+    NCOL_YEAR  PKG_STD.TREF;
+    NCOL_1YEAR PKG_STD.TREF;
+    NCOL_2YEAR PKG_STD.TREF;
+    NROW_TYPE  integer;
+
+    SATTRIBUTE1 PKG_STD.TSTRING; -- доп. атрибуты 1 группы (колонки 1-2)
+    SATTRIBUTE2 PKG_STD.TSTRING; -- доп. атрибуты 2 группы (колонки 3-5)
+    SATTRIBUTE3 PKG_STD.TSTRING; -- доп. атрибуты 3 группы (колонки 6)
+    SATTRIBUTE4 PKG_STD.TSTRING; -- доп. атрибуты 4 группы (колонки 7-9)
+  begin
+    BPROTECT := PRSG_CALCTAB.MODE_VIEW();
+
+    /* чтение записи "период" */
+    READ_PER(NTYPE_PER => TYPE_PER_, RPER => RPER);
+
+    /* Лист ПНЗ */
+    /* выбор таблицы ("Заголовок") */
+    PRSG_CALCTAB_IMAGE.SELECT_TABLE(SHEET_PNZ_, TABLE_HEAD_);
+    DO_BEFORE_TITLE(RPER);
+    /* выбор таблицы ("Расчетные данные") */
+    PRSG_CALCTAB_IMAGE.SELECT_TABLE(SHEET_PNZ_, TABLE_CALC_);
+
+    /* тип - услуга или работа */
+    DO_BEFORE_SHEET(TYPE_SERV_, ROW_SERV_, BPROTECT); -- строки услуги
+    DO_BEFORE_SHEET(TYPE_WORK_, ROW_WORK_, BPROTECT); -- строки работы
+
+    DO_BEFORE_SERV_ALL(BTRUE); -- заполнение строки "Всего по услугам"
+    DO_BEFORE_WORK_ALL(BTRUE); -- заполнение строки "Всего по работам"
+    DO_BEFORE_ALL(BTRUE); -- заполнение строки "Всего"
+
+    /* сохранение данных образа */
+    PRSG_CALCTAB_IMAGE.SAVE_DATA;
+  end DO_BEFORE;
+
+  /* процедура, выполняемая после закрытия книги (ПНЗ) */
+  procedure DO_AFTER_SHEET
+  (
+    NTYPE in number,
+    SROW  in varchar2
+  ) as
+    RROW_SW       PRSG_CALCTAB.TCURSOR;
+    RROW_PNZ      PRSG_CALCTAB.TCURSOR;
+    RROW_TR       PRSG_CALCTAB.TCURSOR;
+    RROW_PNZ_NULL PRSG_CALCTAB.TCURSOR;
+    RROW_TR_NULL  PRSG_CALCTAB.TCURSOR;
+
+    NCOL_COSTNAME_ID    PKG_STD.TREF;
+    NCOL_APPOINTMENT_ID PKG_STD.TREF;
+    NCOL_RATIONALE_ID   PKG_STD.TREF;
+    NCOL_D_YEAR         PKG_STD.TREF;
+    NCOL_D_1YEAR        PKG_STD.TREF;
+    NCOL_D_2YEAR        PKG_STD.TREF;
+
+    NROW_PNZ_ID      PKG_STD.TREF;
+    NROW_PNZ_NULL_ID PKG_STD.TREF;
+
+    RSERV_WORK TSW;
+    RPNZ       TSW;
+    RTR        TSW;
+    RPNZ_NULL  TSW;
+    RTR_NULL   TSW;
+
+    NPNZD_RN            PKG_STD.TREF;
+    SD_COSTNAME         PKG_STD.TSTRING;
+    SD_APPOINTMENT      PKG_STD.TSTRING;
+    SD_RATIONALE        PKG_STD.TSTRING;
+    NCOUNT_FPDPPGZWPNZD integer := 0;
+  begin
+    /* Определение идентификаторов столбцов */
+    NCOL_COSTNAME_ID    := PRSG_CALCTAB_IMAGE.COLUMN_ID(SCOLUMN_NAME => COLUMN_COSTNAME_);
+    NCOL_APPOINTMENT_ID := PRSG_CALCTAB_IMAGE.COLUMN_ID(SCOLUMN_NAME => COLUMN_APPOINTMENT_);
+    NCOL_RATIONALE_ID   := PRSG_CALCTAB_IMAGE.COLUMN_ID(SCOLUMN_NAME => COLUMN_RATIONALE_);
+    NCOL_D_YEAR         := PRSG_CALCTAB_IMAGE.COLUMN_ID(SCOLUMN_NAME => COLUMN_D_YEAR_);
+    NCOL_D_1YEAR        := PRSG_CALCTAB_IMAGE.COLUMN_ID(SCOLUMN_NAME => COLUMN_D_1YEAR_);
+    NCOL_D_2YEAR        := PRSG_CALCTAB_IMAGE.COLUMN_ID(SCOLUMN_NAME => COLUMN_D_2YEAR_);
+
+    /* Итоговые строки по услуге/работе */
+    PRSG_CALCTAB_IMAGE.FIRST_ROW(SROW, RROW_SW);
+    loop
+      READ_SW(NTYPE_WORK => case
+                              when SROW = ROW_SERV_ then
+                               TYPE_SERV_
+                              when SROW = ROW_WORK_ then
+                               TYPE_WORK_
+                            end,
+              NRN        => RROW_SW.ROW_SOURCE,
+              RSW        => RSERV_WORK);
+
+      begin
+        select count(*)
+          into NCOUNT_FPDPPGZWPNZD
+          from (select REF_A01
+                  from CALCTAB_DATA
+                 where type = (case
+                         when SROW = ROW_SERV_ then
+                          TYPE_SERV_TR_
+                         when SROW = ROW_WORK_ then
+                          TYPE_WORK_TR_
+                       end)
+                   and REF_A01 = RSERV_WORK.GZW_RN
+                 group by REF_A01,
+                          REF_A04,
+                          REF_A06);
+      end;
+
+      /* Строки по ПНЗ */
+      PRSG_CALCTAB_IMAGE.FIRST_ROW(case when SROW = ROW_SERV_ then ROW_SERV_PNZ_ when SROW = ROW_WORK_ then
+                                   ROW_WORK_PNZ_ end,
+                                   RROW_PNZ,
+                                   RROW_SW.ROW_ID);
+      loop
+        READ_SW(NTYPE_WORK => case
+                                when SROW = ROW_SERV_ then
+                                 TYPE_SERV_
+                                when SROW = ROW_WORK_ then
+                                 TYPE_WORK_
+                              end,
+                NRN        => RROW_PNZ.ROW_SOURCE,
+                RSW        => RPNZ);
+
+        NROW_PNZ_ID := PRSG_CALCTAB_IMAGE.ROW_ID(SROW_NAME      => case
+                                                                     when SROW = ROW_SERV_ then
+                                                                      ROW_SERV_PNZ_IT_
+                                                                     when SROW = ROW_WORK_ then
+                                                                      ROW_WORK_PNZ_IT_
+                                                                   end,
+                                                 NPARENT_ROW_ID => RROW_PNZ.ROW_ID);
+
+        if RROW_PNZ.ROW_SOURCE <> 0 then
+          -- Наименование затрат
+          PRSG_CALCTAB_IMAGE.READ_STR(NCOLUMN_ID => NCOL_COSTNAME_ID, NROW_ID => NROW_PNZ_ID, SVALUE => SD_COSTNAME);
+          -- Назначение затрат
+          PRSG_CALCTAB_IMAGE.READ_STR(NCOLUMN_ID => NCOL_APPOINTMENT_ID,
+                                      NROW_ID    => NROW_PNZ_ID,
+                                      SVALUE     => SD_APPOINTMENT);
+          -- Обоснование
+          PRSG_CALCTAB_IMAGE.READ_STR(NCOLUMN_ID => NCOL_RATIONALE_ID, NROW_ID => NROW_PNZ_ID, SVALUE => SD_RATIONALE);
+
+          if SD_COSTNAME is null then
+            P_EXCEPTION(0,
+                        'Поле "Наименование затрат" не может быть пустым. Ячейка %s',
+                        PRSG_CALCTAB_IMAGE.ADDRESS(NCOL_COSTNAME_ID, NROW_PNZ_ID));
+          end if;
+          if SD_APPOINTMENT is null then
+            P_EXCEPTION(0,
+                        'Поле "Назначение затрат" не может быть пустым. Ячейка %s',
+                        PRSG_CALCTAB_IMAGE.ADDRESS(NCOL_APPOINTMENT_ID, NROW_PNZ_ID));
+          end if;
+          if SD_RATIONALE is null then
+            P_EXCEPTION(0,
+                        'Поле "Обоснование затрат" не может быть пустым. Ячейка %s',
+                        PRSG_CALCTAB_IMAGE.ADDRESS(NCOL_RATIONALE_ID, NROW_PNZ_ID));
+          end if;
+
+          if NCOUNT_FPDPPGZWPNZD < 2 then
+            /* Поиск записи детализации ПНЗ */
+            begin
+              select PNZD.RN
+                into NPNZD_RN
+                from FPDPPGZWPNZD PNZD
+               where PNZD.PRN = RPNZ.PNZ_PRN
+                 and PNZD.COSTNAME = RPNZ.D_COSTNAME
+                 and PNZD.APPOINTMENT = RPNZ.D_APPOINTMENT
+                 and PNZD.RATIONALE = RPNZ.D_RATIONALE;
+            exception
+              when NO_DATA_FOUND then
+                NPNZD_RN := null;
+            end;
+
+            /* текущий год */
+            PRSG_CALCTAB_IMAGE.READ_NUM(NCOLUMN_ID => NCOL_D_YEAR, NROW_ID => NROW_PNZ_ID, NVALUE => RPNZ.D_YEAR);
+            /* первый год */
+            PRSG_CALCTAB_IMAGE.READ_NUM(NCOLUMN_ID => NCOL_D_1YEAR, NROW_ID => NROW_PNZ_ID, NVALUE => RPNZ.D_1YEAR);
+            /* второй год */
+            PRSG_CALCTAB_IMAGE.READ_NUM(NCOLUMN_ID => NCOL_D_2YEAR, NROW_ID => NROW_PNZ_ID, NVALUE => RPNZ.D_2YEAR);
+
+            /* Если сумма хотябы за один год НЕ пустая */
+            if RPNZ.D_YEAR is not null or RPNZ.D_1YEAR is not null or RPNZ.D_2YEAR is not null then
+              /* Если запись детализации ПНЗ не найдена - добавим */
+              if NPNZD_RN is null then
+                /* базовое добавление записи */
+                P_FPDPPGZWPNZD_BASE_INSERT(NCOMPANY     => RPNZ.GZW_COMPANY,
+                                           NPRN         => RPNZ.PNZ_PRN,
+                                           SCOSTNAME    => SD_COSTNAME,
+                                           SAPPOINTMENT => SD_APPOINTMENT,
+                                           SRATIONALE   => SD_RATIONALE,
+                                           NZ_YEAR      => NVL(RPNZ.D_YEAR, 0),
+                                           NZ_1YEAR     => NVL(RPNZ.D_1YEAR, 0),
+                                           NZ_2YEAR     => NVL(RPNZ.D_2YEAR, 0),
+                                           NRN          => NPNZD_RN);
+              else
+                -- иначе - обновим
+                /* базовое исправление записи */
+                P_FPDPPGZWPNZD_BASE_UPDATE(NRN          => NPNZD_RN,
+                                           NCOMPANY     => RPNZ.GZW_COMPANY,
+                                           SCOSTNAME    => SD_COSTNAME,
+                                           SAPPOINTMENT => SD_APPOINTMENT,
+                                           SRATIONALE   => SD_RATIONALE,
+                                           NZ_YEAR      => NVL(RPNZ.D_YEAR, 0),
+                                           NZ_1YEAR     => NVL(RPNZ.D_1YEAR, 0),
+                                           NZ_2YEAR     => NVL(RPNZ.D_2YEAR, 0));
+              end if; -- nPNZD_RN is null
+            end if; -- rTR.D_YEAR is not null
+          else
+            /* Строки по территориям */
+            PRSG_CALCTAB_IMAGE.FIRST_ROW(case when SROW = ROW_SERV_ then ROW_SERV_TR_ when SROW = ROW_WORK_ then
+                                         ROW_WORK_TR_ end,
+                                         RROW_TR,
+                                         RROW_PNZ.ROW_ID);
+            loop
+              READ_SW(NTYPE_WORK => case
+                                      when SROW = ROW_SERV_ then
+                                       TYPE_SERV_
+                                      when SROW = ROW_WORK_ then
+                                       TYPE_WORK_
+                                    end,
+                      NRN        => RROW_TR.ROW_SOURCE,
+                      RSW        => RTR);
+
+              if RROW_TR.ROW_SOURCE <> 0 then
+                /* Поиск записи детализации ПНЗ */
+                begin
+                  select PNZD.RN
+                    into NPNZD_RN
+                    from FPDPPGZWPNZD PNZD
+                   where PNZD.PRN = RTR.PNZ_PRN
+                     and PNZD.COSTNAME = RPNZ.D_COSTNAME
+                     and PNZD.APPOINTMENT = RPNZ.D_APPOINTMENT
+                     and PNZD.RATIONALE = RPNZ.D_RATIONALE;
+                exception
+                  when NO_DATA_FOUND then
+                    NPNZD_RN := null;
+                end;
+
+                /* текущий год */
+                PRSG_CALCTAB_IMAGE.READ_ROW_NUM(RCURSOR      => RROW_TR,
+                                                SCOLUMN_NAME => COLUMN_D_YEAR_,
+                                                NVALUE       => RTR.D_YEAR);
+                /* первый год */
+                PRSG_CALCTAB_IMAGE.READ_ROW_NUM(RCURSOR      => RROW_TR,
+                                                SCOLUMN_NAME => COLUMN_D_1YEAR_,
+                                                NVALUE       => RTR.D_1YEAR);
+                /* второй год */
+                PRSG_CALCTAB_IMAGE.READ_ROW_NUM(RCURSOR      => RROW_TR,
+                                                SCOLUMN_NAME => COLUMN_D_2YEAR_,
+                                                NVALUE       => RTR.D_2YEAR);
+
+                /* Если сумма хотябы за один год НЕ пустая */
+                if RTR.D_YEAR is not null or RTR.D_1YEAR is not null or RTR.D_2YEAR is not null then
+                  /* Если запись детализации ПНЗ не найдена - добавим */
+                  if NPNZD_RN is null then
+                    /* базовое добавление записи */
+                    P_FPDPPGZWPNZD_BASE_INSERT(NCOMPANY     => RPNZ.GZW_COMPANY,
+                                               NPRN         => RTR.PNZ_PRN,
+                                               SCOSTNAME    => RPNZ.D_COSTNAME,
+                                               SAPPOINTMENT => RPNZ.D_APPOINTMENT,
+                                               SRATIONALE   => RPNZ.D_RATIONALE,
+                                               NZ_YEAR      => NVL(RTR.D_YEAR, 0),
+                                               NZ_1YEAR     => NVL(RTR.D_1YEAR, 0),
+                                               NZ_2YEAR     => NVL(RTR.D_2YEAR, 0),
+                                               NRN          => NPNZD_RN);
+                  else
+                    -- иначе - обновим
+                    /* базовое исправление записи */
+                    P_FPDPPGZWPNZD_BASE_UPDATE(NRN          => NPNZD_RN,
+                                               NCOMPANY     => RTR.GZW_COMPANY,
+                                               SCOSTNAME    => RPNZ.D_COSTNAME,
+                                               SAPPOINTMENT => RPNZ.D_APPOINTMENT,
+                                               SRATIONALE   => RPNZ.D_RATIONALE,
+                                               NZ_YEAR      => NVL(RTR.D_YEAR, 0),
+                                               NZ_1YEAR     => NVL(RTR.D_1YEAR, 0),
+                                               NZ_2YEAR     => NVL(RTR.D_2YEAR, 0));
+
+                  end if; -- nPNZD_RN is null
+                end if; -- rTR.D_YEAR is not null
+              end if;
+
+              /* Проверка следующей строки территории */
+              if (not PRSG_CALCTAB_IMAGE.NEXT_ROW(RROW_TR)) then
+                exit;
+              end if;
+            end loop;
+          end if;
+        end if;
+
+        /* Проверка следующей строки ПНЗ */
+        if (not PRSG_CALCTAB_IMAGE.NEXT_ROW(RROW_PNZ)) then
+          exit;
+        end if;
+      end loop;
+
+      /* Если нет НЕ пустых строк - переопределим кол-во территорий по пустым строкам */
+      if NCOUNT_FPDPPGZWPNZD = 0 then
+        begin
+          select count(*)
+            into NCOUNT_FPDPPGZWPNZD
+            from (select REF_A01
+                    from CALCTAB_DATA
+                   where type = (case
+                           when SROW = ROW_SERV_ then
+                            TYPE_SERV_TR_NULL_
+                           when SROW = ROW_WORK_ then
+                            TYPE_WORK_TR_NULL_
+                         end)
+                     and REF_A01 = RSERV_WORK.GZW_RN
+                   group by REF_A01,
+                            REF_A04,
+                            REF_A06);
+        end;
+      end if;
+      /* Строки по ПНЗ Пустые */
+      PRSG_CALCTAB_IMAGE.FIRST_ROW(case when SROW = ROW_SERV_ then ROW_SERV_PNZ_NULL_ when SROW = ROW_WORK_ then
+                                   ROW_WORK_PNZ_NULL_ end,
+                                   RROW_PNZ_NULL,
+                                   RROW_SW.ROW_ID);
+      loop
+        READ_SW(NTYPE_WORK => case
+                                when SROW = ROW_SERV_ then
+                                 TYPE_SERV_
+                                when SROW = ROW_WORK_ then
+                                 TYPE_WORK_
+                              end,
+                NRN        => RROW_PNZ_NULL.ROW_SOURCE,
+                RSW        => RPNZ_NULL);
+
+        NROW_PNZ_NULL_ID := PRSG_CALCTAB_IMAGE.ROW_ID(SROW_NAME      => case
+                                                                          when SROW = ROW_SERV_ then
+                                                                           ROW_SERV_PNZ_IT_NULL_
+                                                                          when SROW = ROW_WORK_ then
+                                                                           ROW_WORK_PNZ_IT_NULL_
+                                                                        end,
+                                                      NPARENT_ROW_ID => RROW_PNZ_NULL.ROW_ID);
+
+        if RROW_PNZ_NULL.ROW_SOURCE <> 0 then
+          -- Наименование затрат
+          PRSG_CALCTAB_IMAGE.READ_STR(NCOLUMN_ID => NCOL_COSTNAME_ID,
+                                      NROW_ID    => NROW_PNZ_NULL_ID,
+                                      SVALUE     => RPNZ_NULL.D_COSTNAME);
+          -- Назначение затрат
+          PRSG_CALCTAB_IMAGE.READ_STR(NCOLUMN_ID => NCOL_APPOINTMENT_ID,
+                                      NROW_ID    => NROW_PNZ_NULL_ID,
+                                      SVALUE     => RPNZ_NULL.D_APPOINTMENT);
+          -- Обоснование
+          PRSG_CALCTAB_IMAGE.READ_STR(NCOLUMN_ID => NCOL_RATIONALE_ID,
+                                      NROW_ID    => NROW_PNZ_NULL_ID,
+                                      SVALUE     => RPNZ_NULL.D_RATIONALE);
+
+          if NCOUNT_FPDPPGZWPNZD < 2 then
+            /* текущий год */
+            PRSG_CALCTAB_IMAGE.READ_NUM(NCOLUMN_ID => NCOL_D_YEAR,
+                                        NROW_ID    => NROW_PNZ_NULL_ID,
+                                        NVALUE     => RPNZ_NULL.D_YEAR);
+            /* первый год */
+            PRSG_CALCTAB_IMAGE.READ_NUM(NCOLUMN_ID => NCOL_D_1YEAR,
+                                        NROW_ID    => NROW_PNZ_NULL_ID,
+                                        NVALUE     => RPNZ_NULL.D_1YEAR);
+            /* второй год */
+            PRSG_CALCTAB_IMAGE.READ_NUM(NCOLUMN_ID => NCOL_D_2YEAR,
+                                        NROW_ID    => NROW_PNZ_NULL_ID,
+                                        NVALUE     => RPNZ_NULL.D_2YEAR);
+
+            /* Если сумма хотябы за один год НЕ пустая */
+            if RPNZ_NULL.D_YEAR is not null or RPNZ_NULL.D_1YEAR is not null or RPNZ_NULL.D_2YEAR is not null then
+              /* Проверка заполнения полей */
+              if RPNZ_NULL.D_COSTNAME is not null then
+                /* проверка заполнения полей "назначение затрат" и "обоснование затрат" */
+                if RPNZ_NULL.D_APPOINTMENT is null then
+                  P_EXCEPTION(0,
+                              'Поле "Назначение затрат" для наименования "%s" не может быть пустым. Ячейка %s',
+                              RPNZ_NULL.D_COSTNAME,
+                              PRSG_CALCTAB_IMAGE.ADDRESS(NCOL_APPOINTMENT_ID, NROW_PNZ_NULL_ID));
+                end if;
+                if RPNZ_NULL.D_RATIONALE is null then
+                  P_EXCEPTION(0,
+                              'Поле "Обоснование затрат" для наименования "%s" не может быть пустым. Ячейка %s',
+                              RPNZ_NULL.D_COSTNAME,
+                              PRSG_CALCTAB_IMAGE.ADDRESS(NCOL_RATIONALE_ID, NROW_PNZ_NULL_ID));
+                end if;
+
+                /* базовое добавление записи */
+                P_FPDPPGZWPNZD_BASE_INSERT(NCOMPANY     => RPNZ_NULL.GZW_COMPANY,
+                                           NPRN         => RPNZ_NULL.PNZ_PRN,
+                                           SCOSTNAME    => RPNZ_NULL.D_COSTNAME,
+                                           SAPPOINTMENT => RPNZ_NULL.D_APPOINTMENT,
+                                           SRATIONALE   => RPNZ_NULL.D_RATIONALE,
+                                           NZ_YEAR      => NVL(RPNZ_NULL.D_YEAR, 0),
+                                           NZ_1YEAR     => NVL(RPNZ_NULL.D_1YEAR, 0),
+                                           NZ_2YEAR     => NVL(RPNZ_NULL.D_2YEAR, 0),
+                                           NRN          => NPNZD_RN);
+
+              end if;
+            end if; -- rTR.D_YEAR is not null
+          else
+            /* Строки по территориям Пустые */
+            PRSG_CALCTAB_IMAGE.FIRST_ROW(case when SROW = ROW_SERV_ then ROW_SERV_TR_NULL_ when SROW = ROW_WORK_ then
+                                         ROW_WORK_TR_NULL_ end,
+                                         RROW_TR_NULL,
+                                         RROW_PNZ_NULL.ROW_ID);
+            loop
+              READ_SW(NTYPE_WORK => case
+                                      when SROW = ROW_SERV_ then
+                                       TYPE_SERV_
+                                      when SROW = ROW_WORK_ then
+                                       TYPE_WORK_
+                                    end,
+                      NRN        => RROW_TR_NULL.ROW_SOURCE,
+                      RSW        => RTR_NULL);
+
+              if RROW_TR_NULL.ROW_SOURCE <> 0 then
+                /* текущий год */
+                PRSG_CALCTAB_IMAGE.READ_NUM(NCOLUMN_ID => NCOL_D_YEAR,
+                                            NROW_ID    => RROW_TR_NULL.ROW_ID,
+                                            NVALUE     => RTR_NULL.D_YEAR);
+                /* первый год */
+                PRSG_CALCTAB_IMAGE.READ_NUM(NCOLUMN_ID => NCOL_D_1YEAR,
+                                            NROW_ID    => RROW_TR_NULL.ROW_ID,
+                                            NVALUE     => RTR_NULL.D_1YEAR);
+                /* второй год */
+                PRSG_CALCTAB_IMAGE.READ_NUM(NCOLUMN_ID => NCOL_D_2YEAR,
+                                            NROW_ID    => RROW_TR_NULL.ROW_ID,
+                                            NVALUE     => RTR_NULL.D_2YEAR);
+
+                /* Если сумма хотябы за один год НЕ пустая */
+                if RTR_NULL.D_YEAR is not null or RTR_NULL.D_1YEAR is not null or RTR_NULL.D_2YEAR is not null then
+                  /* Проверка заполнения полей */
+                  if RPNZ_NULL.D_COSTNAME is not null then
+                    /* проверка заполнения полей "назначение затрат" и "обоснование затрат" */
+                    if RPNZ_NULL.D_APPOINTMENT is null then
+                      P_EXCEPTION(0,
+                                  'Поле "Назначение затрат" для наименования "%s" не может быть пустым. Строка %s',
+                                  RPNZ_NULL.D_COSTNAME,
+                                  RROW_PNZ_NULL.ROW_ID);
+                    end if;
+                    if RPNZ_NULL.D_RATIONALE is null then
+                      P_EXCEPTION(0,
+                                  'Поле "Обоснование затрат" для наименования "%s" не может быть пустым. Строка %s',
+                                  RPNZ_NULL.D_COSTNAME,
+                                  RROW_PNZ_NULL.ROW_ID);
+                    end if;
+
+                    /* базовое добавление записи */
+                    P_FPDPPGZWPNZD_BASE_INSERT(NCOMPANY     => RPNZ_NULL.GZW_COMPANY,
+                                               NPRN         => RTR_NULL.PNZ_PRN /*RPNZ_NULL.PNZ_PRN*/,
+                                               SCOSTNAME    => RPNZ_NULL.D_COSTNAME,
+                                               SAPPOINTMENT => RPNZ_NULL.D_APPOINTMENT,
+                                               SRATIONALE   => RPNZ_NULL.D_RATIONALE,
+                                               NZ_YEAR      => NVL(RTR_NULL.D_YEAR, 0),
+                                               NZ_1YEAR     => NVL(RTR_NULL.D_1YEAR, 0),
+                                               NZ_2YEAR     => NVL(RTR_NULL.D_2YEAR, 0),
+                                               NRN          => NPNZD_RN);
+                  end if;
+                end if; -- rTR.D_YEAR is not null
+              end if;
+
+              if (not PRSG_CALCTAB_IMAGE.NEXT_ROW(RROW_TR_NULL)) then
+                exit;
+              end if;
+            end loop;
+          end if;
+        end if;
+
+        if (not PRSG_CALCTAB_IMAGE.NEXT_ROW(RROW_PNZ_NULL)) then
+          exit;
+        end if;
+      end loop;
+
+      /* Проверка следующей строки услуги/работы */
+      if (not PRSG_CALCTAB_IMAGE.NEXT_ROW(RROW_SW)) then
+        exit;
+      end if;
+    end loop;
+
+    /* Обновление признака завершенности */
+     for RREC in (select GZW.RN
+                   from FPDPRPPROJGZW GZW,
+                        SELECTLIST    SL
+                  where SL.IDENT = NIDENT
+                    and SL.DOCUMENT = GZW.RN)
+    loop
+      P_FPDPRPPROJGZW_END_CHK_UPD(NRN      => RREC.RN,
+                                  NPRN     => null,
+                                  NCOMPANY => NCOMPANY,
+                                  NEND_CHK => 0 -- Не рассчитано
+                                  );
+    end loop;
+
+  end DO_AFTER_SHEET;
+
+  /* процедура, выполняемая после закрытия книги */
+  procedure DO_AFTER as
+    NRN PKG_STD.TREF;
+  begin
+    /* восстановление данных образа */
+    PRSG_CALCTAB_IMAGE.RESTORE_DATA;
+
+    /* определение записи */
+    NRN := PRSG_CALCTAB.DOCUMENT();
+
+    /* Лист ПНЗ */
+    /* выбор таблицы ("Расчетные данные") */
+    PRSG_CALCTAB_IMAGE.SELECT_TABLE(SHEET_PNZ_, TABLE_CALC_);
+    /* ПНЗ */
+    DO_AFTER_SHEET(TYPE_SERV_, ROW_SERV_);
+    DO_AFTER_SHEET(TYPE_WORK_, ROW_WORK_);
+
+  end DO_AFTER;
+
+  /* обработка */
+  procedure PROCESS as
+  begin
+    /* Очистка контейнеров */
+    PKG_CONTVALLOC.PURGE(TROW_ALL_SERV);
+    PKG_CONTVALLOC.PURGE(TROW_ALL_WORK);
+
+    /* определение записи */
+    NIDENT := PRSG_CALCTAB.LIST_IDENT();
+
+    if PRSG_CALCTAB.MODE_VIEW() = false then
+      /* Определим рег. номер родительской записи */
+      begin
+        select GZW.PRN
+          into NPRN
+          from FPDPRPPROJGZW GZW,
+               SELECTLIST    SL
+         where SL.IDENT = NIDENT
+           and SL.DOCUMENT = GZW.RN
+           and ROWNUM = 1;
+      end;
+
+      /* Проверка завершения расчета */
+      P_FPDPRPPROJGZ_CTRL(NRN => NPRN, NCOMPANY => NCOMPANY);
+    end if;
+
+    /* контекст */
+    case
+
+    /* процедура описания */
+      when (PRSG_CALCTAB.CONTEXT_DESC()) then
+        P_EXCEPTION(0, 'Контекст "%s" не обрабатывается.', 'DESC');
+
+    /* процедура инициализации */
+      when (PRSG_CALCTAB.CONTEXT_INIT()) then
+        DO_INIT();
+
+    /* процедура, выполняемая перед открытием книги */
+      when (PRSG_CALCTAB.CONTEXT_BEFORE()) then
+        DO_BEFORE();
+
+    /* процедура, выполняемая после закрытия книги */
+      when (PRSG_CALCTAB.CONTEXT_AFTER()) then
+        DO_AFTER();
+
+    /* создание словаря для выбора значений */
+      when (PRSG_CALCTAB.CONTEXT_DICTIONARY()) then
+        P_EXCEPTION(0, 'Контекст "%s" не обрабатывается.', 'DICTIONARY');
+
+    /* создание заголовка листа */
+      when (PRSG_CALCTAB.CONTEXT_SHEET_CAPTION()) then
+        P_EXCEPTION(0, 'Контекст "%s" не обрабатывается.', 'SHEET_CAPTION');
+
+    /* создание заголовка таблицы */
+      when (PRSG_CALCTAB.CONTEXT_TABLE_CAPTION()) then
+        /* лист */
+        case PRSG_CALCTAB.SHEET_NAME()
+          when SHEET_PNZ_ then
+            DO_CONTEXT_TABLE_CAPTION(TYPE_PER_);
+        end case;
+
+    /* определение количества экземпляров заголовка столбцов */
+      when (PRSG_CALCTAB.CONTEXT_COLUMN_COPIES()) then
+        P_EXCEPTION(0, 'Контекст "%s" не обрабатывается.', 'COLUMN_COPIES');
+
+      when (PRSG_CALCTAB.CONTEXT_COLUMN_CAPTION()) then
+        P_EXCEPTION(0, 'Контекст "%s" не обрабатывается.', 'COLUMN_CAPTION');
+
+    /* определение количества экземпляров заголовка строк */
+      when (PRSG_CALCTAB.CONTEXT_ROW_COPIES()) then
+        /* строки */
+        case PRSG_CALCTAB.ROW_NAME()
+        -- строки по услугам
+          when ROW_SERV_ then
+            DO_ROW_COPIES_SERV();
+          when ROW_SERV_IT_ then
+            DO_ROW_COPIES_SERV_IT();
+          when ROW_SERV_PNZ_ then
+            DO_ROW_COPIES_SERV_PNZ();
+          when ROW_SERV_PNZ_IT_ then
+            DO_ROW_COPIES_SERV_PNZ_IT();
+          when ROW_SERV_TR_ then
+            DO_ROW_COPIES_SERV_TR();
+          when ROW_SERV_PNZ_NULL_ then
+            DO_ROW_COPIES_SERV_PNZ_NULL();
+          when ROW_SERV_PNZ_IT_NULL_ then
+            DO_ROW_COPIES_SERV_PNZ_IT_NULL();
+          when ROW_SERV_TR_NULL_ then
+            DO_ROW_COPIES_SERV_TR_NULL();
+            -- строки по работам
+          when ROW_WORK_ then
+            DO_ROW_COPIES_WORK();
+          when ROW_WORK_IT_ then
+            DO_ROW_COPIES_WORK_IT();
+          when ROW_WORK_PNZ_ then
+            DO_ROW_COPIES_WORK_PNZ();
+          when ROW_WORK_PNZ_IT_ then
+            DO_ROW_COPIES_WORK_PNZ_IT();
+          when ROW_WORK_TR_ then
+            DO_ROW_COPIES_WORK_TR();
+          when ROW_WORK_PNZ_NULL_ then
+            DO_ROW_COPIES_WORK_PNZ_NULL();
+          when ROW_WORK_PNZ_IT_NULL_ then
+            DO_ROW_COPIES_WORK_PNZ_IT_NULL();
+          when ROW_WORK_TR_NULL_ then
+            DO_ROW_COPIES_WORK_TR_NULL();
+          else
+            null;
+        end case;
+
+    /* создание заголовка строк */
+      when (PRSG_CALCTAB.CONTEXT_ROW_CAPTION()) then
+        P_EXCEPTION(0, 'Контекст "%s" не обрабатывается.', 'ROW_CAPTION');
+
+    /* выполнение действия */
+      when (PRSG_CALCTAB.CONTEXT_EXECUTE_ACTION()) then
+        P_EXCEPTION(0, 'Контекст "%s" не обрабатывается.', 'EXECUTE_ACTION');
+    end case;
+  end PROCESS;
+end PKG_FP0220;

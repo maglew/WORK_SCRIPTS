@@ -1,0 +1,43 @@
+create or replace procedure _PROCEDURENAME_
+(
+
+)
+as
+_LISTNAME_              constant PKG_STD.tSTRING := '_EXCELNAME_';
+
+_CELLNAME_              constant PKG_STD.tSTRING := '_EXCELNAME_';
+_IMAGENAME_             constant PKG_STD.tSTRING := '_EXCELNAME_';
+_LINENAME_              constant PKG_STD.tSTRING := '_EXCELNAME_';
+
+_ATTRNAME_              PKG_STD.tSTRING := ' ';
+_ATTRNAME_              PKG_STD.tLNUMBER := 0;
+_ATTRNAME_              PKG_STD.tNUMBER := 0;
+_ATTRNAME_              date;
+
+begin
+    PRSG_EXCEL.PREPARE;
+    PRSG_EXCEL.SHEET_SELECT( _LISTNAME_ );
+
+    PRSG_EXCEL.CELL_DESCRIBE(_CELLNAME_);
+    PRSG_EXCEL.LINE_DESCRIBE(_LINENAME_);
+    PRSG_EXCEL.LINE_CELL_DESCRIBE(_LINENAME_, _CELLNAME_);
+
+    for rREC in
+    (
+        select
+        T.*,
+        from
+        _TABBLENAME_ T,
+        SELECTLIST S,
+        where
+        S.IDENT = nIDENT
+        and S.DOCUMENT = T.RN
+    )
+    loop
+        PRSG_EXCEL.CELL_VALUE_WRITE( _CELLNAME_, _ATTRNAME_);
+        if  _COND_ then
+            PRSG_EXCEL.LINE_DELETE(_LINENAME_);
+        end if;
+        PRSG_EXCEL.LINE_DELETE(_LINENAME_);
+    end loop;
+end;

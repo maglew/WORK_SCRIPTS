@@ -1,0 +1,16 @@
+--KADR.FM Ц ‘амили€;
+--KADR.IN Ц »м€;
+--KADR.OTCH Ц ќтчество;
+--KADR.ROJD Ц ƒата рождени€;
+--KADR.RSTR - ”лица?
+--KADR.ROBL - ќбласть
+--KADR.RPUNKT Ц ћесто рождени€;
+--KADR.NSTRAH Ц —Ќ»Ћ—;
+--KADR_2.ID_KADR Ц ссылка на таблицу ЂKADRї;
+--KADR_2.PR_S - ?
+--KADR_2.TN
+--KADR_2.POR_N Ц “абельный номер (переменна€ дл€ сотрудника).
+--KADR_2.DATE_P Ц ƒата приема на работу;
+--KADR_2.INN Ц »ЌЌ;
+--KADR_2.ID_SEM_STATUS Ц —емейный статус.
+--

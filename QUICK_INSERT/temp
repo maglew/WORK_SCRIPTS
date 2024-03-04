@@ -1,0 +1,1380 @@
+
+#variable_conflict use_column
+<<UDO_PKG_CONV$LOAD_BUFFER>>
+/*ppcidx:23464, UDO_PKG_CONV.LOAD_BUFFER.$.numeric.numeric?.numeric? */
+declare
+  sUNIT character varying(40);
+  sTABLE character varying(2000);
+  bUK_EXIST boolean;
+  bUK_CHANGE boolean;
+  bUK_ALL_NULL boolean;
+  bFILTER boolean;
+  bFILTER_AFTER boolean;
+  sERRMSG character varying(4000);
+  sVALUE character varying(4000);
+  dVALUE timestamp without time zone;
+  sUNIT_NUMB numeric;
+  nUNIT_NUMB_START numeric;
+  UDO_PKG_CONV$ppc$vars PARUS.UDO_PKG_CONV$ppc;
+  UDO_PKG_CONV$ppc$vars$tmp PARUS.UDO_PKG_CONV$ppc;
+begin
+  UDO_PKG_CONV$ppc$vars.ppc$saved := true;
+  UDO_PKG_CONV$ppc$vars.ppc$loaded := false;
+  declare
+    buff record;
+  begin
+    UDO_PKG_CONV$ppc$vars.ppc$loaded := false;
+    if not UDO_PKG_CONV$ppc$vars.ppc$saved then
+      perform PARUS.UDO_PKG_CONV$ppc$save(UDO_PKG_CONV$ppc$vars);
+      UDO_PKG_CONV$ppc$vars.ppc$saved := true;
+    end if;
+    for buff in (
+        select
+          bf.RN,
+          bf.PRN,
+          bf.HRN,
+          coalesce(bf."DOCUMENT", bf.BLREPORT) as "DOCUMENT",
+          bf.BLTABLES,
+          bf.ROW_NUMB,
+          bf.ROW_RN,
+          bf.COMPANY_TO,
+          bf.STATUS,
+          bf.UNIT_NUMB,
+          bf.SQL_TEXT,
+          bf.ERRMSG
+        from
+          PARUS.UDO_T_CONV_BLTABLES_BUFF bf
+        where
+          (bf.PRN OPERATOR(public.=) nBLTABLES)
+          and (coalesce(cast(bf.HRN as numeric), cast(0::numeric as numeric)) OPERATOR(public.=) nHRN)
+          and (bf.AUTHID OPERATOR(public.=) PARUS.UTILIZER())
+          and (bf.STATUS OPERATOR(public.<>) 2::numeric)
+          order by bf.NUMB
+        ) loop
+      sTABLE := public.to_char(buff.BLTABLES);
+      UDO_PKG_CONV$ppc$vars$tmp.nBUFF_RN := buff.RN;
+      if not UDO_PKG_CONV$ppc$vars.ppc$loaded then
+        UDO_PKG_CONV$ppc$vars := PARUS.UDO_PKG_CONV$ppc$load();
+      end if;
+      UDO_PKG_CONV$ppc$vars.nBUFF_RN := (UDO_PKG_CONV$ppc$vars$tmp).nBUFF_RN;
+      UDO_PKG_CONV$ppc$vars.ppc$saved := false;
+      declare
+        temp$0$0 boolean;
+      begin
+        declare
+          temp$1$0 PARUS.UDO_PKG_CONV$par_type;
+          temp$1$1 PARUS.UDO_PKG_CONV$unit_type;
+        begin
+          if not UDO_PKG_CONV$ppc$vars.ppc$loaded then
+            UDO_PKG_CONV$ppc$vars := PARUS.UDO_PKG_CONV$ppc$load();
+          end if;
+          temp$1$1 := PARUS.UDO_PKG_CONV$unit_table$get((UDO_PKG_CONV$ppc$vars).tbUNIT, false::boolean, sTABLE);
+          temp$1$0 := PARUS.UDO_PKG_CONV$par_table$get(temp$1$1.PARAMS, false::boolean, PARUS.UDO_PKG_CONV$par_table$count(temp$1$1.PARAMS));
+          temp$0$0 := ((temp$1$0.sNAME OPERATOR(public.=) 'pHRN'::character varying::character varying));
+        end;
+        if temp$0$0 then
+          declare
+            temp$1$0 PARUS.UDO_PKG_CONV$par_type;
+            temp$1$1 PARUS.UDO_PKG_CONV$unit_type;
+          begin
+            if not UDO_PKG_CONV$ppc$vars.ppc$loaded then
+              UDO_PKG_CONV$ppc$vars := PARUS.UDO_PKG_CONV$ppc$load();
+            end if;
+            temp$1$1 := PARUS.UDO_PKG_CONV$unit_table$get((UDO_PKG_CONV$ppc$vars).tbUNIT, true::boolean, sTABLE);
+            temp$1$0 := PARUS.UDO_PKG_CONV$par_table$get(temp$1$1.PARAMS, true::boolean, PARUS.UDO_PKG_CONV$par_table$count(temp$1$1.PARAMS));
+            temp$1$0.nVALUE := coalesce(cast(nROW_RN as numeric), cast(buff."DOCUMENT" as numeric));
+            select
+              PARUS.UDO_PKG_CONV$par_table$put(temp$1$1.PARAMS, PARUS.UDO_PKG_CONV$par_table$count(temp$1$1.PARAMS), temp$1$0)
+            into
+              temp$1$1.PARAMS;
+            select
+              PARUS.UDO_PKG_CONV$unit_table$put((UDO_PKG_CONV$ppc$vars).tbUNIT, sTABLE, temp$1$1)
+            into
+              UDO_PKG_CONV$ppc$vars$tmp.tbUNIT;
+            if not UDO_PKG_CONV$ppc$vars.ppc$loaded then
+              UDO_PKG_CONV$ppc$vars := PARUS.UDO_PKG_CONV$ppc$load();
+            end if;
+            UDO_PKG_CONV$ppc$vars.tbUNIT := (UDO_PKG_CONV$ppc$vars$tmp).tbUNIT;
+            UDO_PKG_CONV$ppc$vars.ppc$saved := false;
+          end;
+          declare
+            temp$1$0 PARUS.UDO_PKG_CONV$par_type;
+            temp$1$1 PARUS.UDO_PKG_CONV$unit_type;
+          begin
+            if not UDO_PKG_CONV$ppc$vars.ppc$loaded then
+              UDO_PKG_CONV$ppc$vars := PARUS.UDO_PKG_CONV$ppc$load();
+            end if;
+            temp$1$1 := PARUS.UDO_PKG_CONV$unit_table$get((UDO_PKG_CONV$ppc$vars).tbUNIT, true::boolean, sTABLE);
+            temp$1$0 := PARUS.UDO_PKG_CONV$par_table$get(temp$1$1.PARAMS, true::boolean, (PARUS.UDO_PKG_CONV$par_table$count(temp$1$1.PARAMS)
+              OPERATOR(public.-) 1::numeric));
+            temp$1$0.nVALUE := buff.ROW_NUMB;
+            select
+              PARUS.UDO_PKG_CONV$par_table$put(temp$1$1.PARAMS, (PARUS.UDO_PKG_CONV$par_table$count(temp$1$1.PARAMS) OPERATOR(public.-) 1::numeric), temp$1$0)
+            into
+              temp$1$1.PARAMS;
+            select
+              PARUS.UDO_PKG_CONV$unit_table$put((UDO_PKG_CONV$ppc$vars).tbUNIT, sTABLE, temp$1$1)
+            into
+              UDO_PKG_CONV$ppc$vars$tmp.tbUNIT;
+            if not UDO_PKG_CONV$ppc$vars.ppc$loaded then
+              UDO_PKG_CONV$ppc$vars := PARUS.UDO_PKG_CONV$ppc$load();
+            end if;
+            UDO_PKG_CONV$ppc$vars.tbUNIT := (UDO_PKG_CONV$ppc$vars$tmp).tbUNIT;
+            UDO_PKG_CONV$ppc$vars.ppc$saved := false;
+          end;
+        else
+          declare
+            temp$1$0 PARUS.UDO_PKG_CONV$par_type;
+            temp$1$1 PARUS.UDO_PKG_CONV$unit_type;
+          begin
+            if not UDO_PKG_CONV$ppc$vars.ppc$loaded then
+              UDO_PKG_CONV$ppc$vars := PARUS.UDO_PKG_CONV$ppc$load();
+            end if;
+            temp$1$1 := PARUS.UDO_PKG_CONV$unit_table$get((UDO_PKG_CONV$ppc$vars).tbUNIT, true::boolean, sTABLE);
+            temp$1$0 := PARUS.UDO_PKG_CONV$par_table$get(temp$1$1.PARAMS, true::boolean, PARUS.UDO_PKG_CONV$par_table$count(temp$1$1.PARAMS));
+            temp$1$0.nVALUE := buff.ROW_NUMB;
+            select
+              PARUS.UDO_PKG_CONV$par_table$put(temp$1$1.PARAMS, PARUS.UDO_PKG_CONV$par_table$count(temp$1$1.PARAMS), temp$1$0)
+            into
+              temp$1$1.PARAMS;
+            select
+              PARUS.UDO_PKG_CONV$unit_table$put((UDO_PKG_CONV$ppc$vars).tbUNIT, sTABLE, temp$1$1)
+            into
+              UDO_PKG_CONV$ppc$vars$tmp.tbUNIT;
+            if not UDO_PKG_CONV$ppc$vars.ppc$loaded then
+              UDO_PKG_CONV$ppc$vars := PARUS.UDO_PKG_CONV$ppc$load();
+            end if;
+            UDO_PKG_CONV$ppc$vars.tbUNIT := (UDO_PKG_CONV$ppc$vars$tmp).tbUNIT;
+            UDO_PKG_CONV$ppc$vars.ppc$saved := false;
+          end;
+        end if;
+      end;
+      declare
+        temp$0$0 boolean;
+      begin
+        UDO_PKG_CONV$ppc$vars.ppc$loaded := false;
+        if not UDO_PKG_CONV$ppc$vars.ppc$saved then
+          perform PARUS.UDO_PKG_CONV$ppc$save(UDO_PKG_CONV$ppc$vars);
+          UDO_PKG_CONV$ppc$vars.ppc$saved := true;
+        end if;
+        temp$0$0 := PARUS.UDO_PKG_CONV$FIND_RECORD(sTABLE, 1::numeric::numeric, false::boolean);
+        while temp$0$0 loop
+          declare
+            temp$0$0 boolean;
+          begin
+            declare
+              temp$3$0 PARUS.UDO_PKG_CONV$par_type;
+              temp$3$1 PARUS.UDO_PKG_CONV$unit_type;
+            begin
+              if not UDO_PKG_CONV$ppc$vars.ppc$loaded then
+                UDO_PKG_CONV$ppc$vars := PARUS.UDO_PKG_CONV$ppc$load();
+              end if;
+              temp$3$1 := PARUS.UDO_PKG_CONV$unit_table$get((UDO_PKG_CONV$ppc$vars).tbUNIT, false::boolean, sTABLE);
+              temp$3$0 := PARUS.UDO_PKG_CONV$par_table$get(temp$3$1.PARAMS, false::boolean, 2::numeric::numeric);
+              temp$0$0 := ((buff.STATUS OPERATOR(public.=) 1::numeric::numeric)) and ((buff.ROW_RN OPERATOR(public.=) temp$3$0.nVALUE));
+            end;
+            if temp$0$0 then
+              nUNIT_NUMB_START := null;
+            else
+              declare
+                temp$1$0 PARUS.UDO_PKG_CONV$par_type;
+                temp$1$1 PARUS.UDO_PKG_CONV$unit_type;
+                temp$3$2 PARUS.UDO_PKG_CONV$par_type;
+              begin
+                if not UDO_PKG_CONV$ppc$vars.ppc$loaded then
+                  UDO_PKG_CONV$ppc$vars := PARUS.UDO_PKG_CONV$ppc$load();
+                end if;
+                temp$1$1 := PARUS.UDO_PKG_CONV$unit_table$get((UDO_PKG_CONV$ppc$vars).tbUNIT, false::boolean, sTABLE);
+                temp$3$2 := PARUS.UDO_PKG_CONV$par_table$get(temp$1$1.PARAMS, false::boolean, 2::numeric);
+                temp$1$0 := PARUS.UDO_PKG_CONV$par_table$get(temp$1$1.PARAMS, false::boolean, 1::numeric);
+                update PARUS.UDO_T_CONV_BLTABLES_BUFF b set
+                  STATUS = 1::numeric,
+                  ROW_NUMB = temp$1$0.nVALUE,
+                  ROW_RN = temp$3$2.nVALUE,
+                  UNIT_NUMB = 0::numeric
+                where
+                  (b.RN OPERATOR(public.=) buff.RN);
+              end;
+              declare
+                buff_chield record;
+              begin
+                for buff_chield in (
+                    with recursive ppc$conn as (
+                      select
+                        ppc$conn$start.*,
+                        1::numeric as level,
+                        array[row_number() over()] as ppc$tree$order
+                      from
+                        (
+                          select
+                            bfc.HRN as ppc$int0,
+                            bfc.RN as ppc$int1
+                          from
+                            PARUS.UDO_T_CONV_BLTABLES_BUFF bfc
+                          where
+                            (bfc.HRN OPERATOR(public.=) buff.RN)
+                          ) ppc$conn$start
+                        union all
+                          select
+                            ppc$conn$connect.*,
+                            ppc$prior.level OPERATOR(public.+) 1::numeric,
+                            ppc$prior.ppc$tree$order || array[row_number() over()]
+                          from
+                            ppc$conn ppc$prior
+                            join
+                              (
+                                select
+                                  bfc.HRN as ppc$int0,
+                                  bfc.RN as ppc$int1
+                                from
+                                  PARUS.UDO_T_CONV_BLTABLES_BUFF bfc
+                                ) ppc$conn$connect
+                              on(ppc$conn$connect.ppc$int0 OPERATOR(public.=) ppc$prior.ppc$int1)
+                      )
+                    select
+                      ppc$int1 as RN
+                    from
+                      ppc$conn bfc
+                      order by ppc$tree$order
+                    ) loop
+                  update PARUS.UDO_T_CONV_BLTABLES_BUFF b set
+                    STATUS = 0::numeric,
+                    ROW_RN = 0::numeric,
+                    ROW_NUMB = 0::numeric,
+                    UNIT_NUMB = 0::numeric
+                  where
+                    (b.RN OPERATOR(public.=) buff_chield.RN);
+                end loop;
+              end;
+              declare
+                temp$0$0 boolean;
+              begin
+                if not UDO_PKG_CONV$ppc$vars.ppc$loaded then
+                  UDO_PKG_CONV$ppc$vars := PARUS.UDO_PKG_CONV$ppc$load();
+                end if;
+                temp$0$0 := (UDO_PKG_CONV$ppc$vars).bTRACE_FLAG;
+                if temp$0$0 then
+                  declare
+                    temp$0$0 boolean;
+                  begin
+                    UDO_PKG_CONV$ppc$vars.ppc$loaded := false;
+                    if not UDO_PKG_CONV$ppc$vars.ppc$saved then
+                      perform PARUS.UDO_PKG_CONV$ppc$save(UDO_PKG_CONV$ppc$vars);
+                      UDO_PKG_CONV$ppc$vars.ppc$saved := true;
+                    end if;
+                    temp$0$0 := ((PARUS.PKG_SESSION$GET_CONNECT_TYPE() OPERATOR(public.=) 0::numeric::numeric));
+                    if temp$0$0 then
+                      null;
+                    end if;
+                  end;
+                end if;
+              end;
+            end if;
+          end;
+          sUNIT_NUMB := 0::numeric;
+          UDO_PKG_CONV$ppc$vars$tmp.sSQLTEXT := null;
+          if not UDO_PKG_CONV$ppc$vars.ppc$loaded then
+            UDO_PKG_CONV$ppc$vars := PARUS.UDO_PKG_CONV$ppc$load();
+          end if;
+          UDO_PKG_CONV$ppc$vars.sSQLTEXT := (UDO_PKG_CONV$ppc$vars$tmp).sSQLTEXT;
+          UDO_PKG_CONV$ppc$vars.ppc$saved := false;
+          declare
+            temp$0$0 boolean;
+          begin
+            declare
+              temp$1$0 PARUS.UDO_PKG_CONV$par_type;
+              temp$1$1 PARUS.UDO_PKG_CONV$unit_type;
+            begin
+              if not UDO_PKG_CONV$ppc$vars.ppc$loaded then
+                UDO_PKG_CONV$ppc$vars := PARUS.UDO_PKG_CONV$ppc$load();
+              end if;
+              temp$1$1 := PARUS.UDO_PKG_CONV$unit_table$get((UDO_PKG_CONV$ppc$vars).tbUNIT, false::boolean, sTABLE);
+              temp$1$0 := PARUS.UDO_PKG_CONV$par_table$get(temp$1$1.PARAMS, false::boolean, 2::numeric::numeric);
+              temp$0$0 := ((temp$1$0.nVALUE OPERATOR(public.=) buff.ROW_RN));
+            end;
+            if temp$0$0 then
+              nUNIT_NUMB_START := buff.UNIT_NUMB;
+            else
+              nUNIT_NUMB_START := 0::numeric;
+            end if;
+          end;
+          begin
+            declare
+              unit record;
+            begin
+              for unit in (
+                  select
+                    u.RN,
+                    u.NUMB,
+                    u.UNITCODE,
+                    u.ONLY_FOUND,
+                    u.ERR_NOTFOUND,
+                    u.FILTER,
+                    u.VIEW_NAME,
+                    u.TABLE_NAME,
+                    u.PROC_NAME
+                  from
+                    PARUS.UDO_T_CONV_UNITLIST u
+                  where
+                    (u.PRN OPERATOR(public.=) buff.PRN)
+                    and (u.CONCEPT OPERATOR(public.=) buff.BLTABLES)
+                    order by u.NUMB
+                  ) loop
+                sUNIT := public.to_char(unit.RN);
+                sUNIT_NUMB := unit.NUMB;
+                UDO_PKG_CONV$ppc$vars$tmp.sUNITCODE := unit.UNITCODE;
+                if not UDO_PKG_CONV$ppc$vars.ppc$loaded then
+                  UDO_PKG_CONV$ppc$vars := PARUS.UDO_PKG_CONV$ppc$load();
+                end if;
+                UDO_PKG_CONV$ppc$vars.sUNITCODE := (UDO_PKG_CONV$ppc$vars$tmp).sUNITCODE;
+                UDO_PKG_CONV$ppc$vars.ppc$saved := false;
+                UDO_PKG_CONV$ppc$vars.ppc$loaded := false;
+                if not UDO_PKG_CONV$ppc$vars.ppc$saved then
+                  perform PARUS.UDO_PKG_CONV$ppc$save(UDO_PKG_CONV$ppc$vars);
+                  UDO_PKG_CONV$ppc$vars.ppc$saved := true;
+                end if;
+                perform PARUS.UDO_PKG_CONV$PARAMS_VALUE_CLEAR(sUNIT);
+                bFILTER := true::boolean;
+                bFILTER_AFTER := false::boolean;
+                if (public.btrim(unit.FILTER) is not null) then
+                  if not UDO_PKG_CONV$ppc$vars.ppc$loaded then
+                    UDO_PKG_CONV$ppc$vars := PARUS.UDO_PKG_CONV$ppc$load();
+                  end if;
+                  unit.FILTER := public.replace(unit.FILTER, '<COMPANY>'::character varying, public.to_char((UDO_PKG_CONV$ppc$vars).nCOMPANY_TO));
+                  unit.FILTER := public.replace(unit.FILTER, '<DOCUMENT>'::character varying, public.to_char(buff."DOCUMENT"));
+                  unit.FILTER := public.replace(unit.FILTER, '<UNITCODE>'::character varying, PARUS.UDO_PKG_CONV$FORMAT_VALUE(unit.UNITCODE, 0::numeric));
+                  declare
+                    temp$5$0 PARUS.UDO_PKG_CONV$par_type;
+                    temp$5$1 PARUS.UDO_PKG_CONV$unit_type;
+                  begin
+                    if not UDO_PKG_CONV$ppc$vars.ppc$loaded then
+                      UDO_PKG_CONV$ppc$vars := PARUS.UDO_PKG_CONV$ppc$load();
+                    end if;
+                    temp$5$1 := PARUS.UDO_PKG_CONV$unit_table$get((UDO_PKG_CONV$ppc$vars).tbUNIT, false::boolean, sTABLE);
+                    temp$5$0 := PARUS.UDO_PKG_CONV$par_table$get(temp$5$1.PARAMS, false::boolean, 1::numeric);
+                    unit.FILTER := public.replace(unit.FILTER, '<ROWNUM>'::character varying, public.to_char(temp$5$0.nVALUE));
+                  end;
+                  declare
+                    temp$5$0 PARUS.UDO_PKG_CONV$par_type;
+                    temp$5$1 PARUS.UDO_PKG_CONV$unit_type;
+                  begin
+                    if not UDO_PKG_CONV$ppc$vars.ppc$loaded then
+                      UDO_PKG_CONV$ppc$vars := PARUS.UDO_PKG_CONV$ppc$load();
+                    end if;
+                    temp$5$1 := PARUS.UDO_PKG_CONV$unit_table$get((UDO_PKG_CONV$ppc$vars).tbUNIT, false::boolean, sTABLE);
+                    temp$5$0 := PARUS.UDO_PKG_CONV$par_table$get(temp$5$1.PARAMS, false::boolean, 2::numeric);
+                    unit.FILTER := public.replace(unit.FILTER, '<ROWRN>'::character varying, public.to_char(temp$5$0.nVALUE));
+                  end;
+                  if ((public.instr(unit.FILTER, '<'::character varying) OPERATOR(public.>) 0::numeric) and (public.instr(unit.FILTER, '>'::character varying)
+                    OPERATOR(public.>) 0::numeric)) then
+                    declare
+                      temp$1$0 PARUS.UDO_PKG_CONV$unit_type;
+                    begin
+                      if not UDO_PKG_CONV$ppc$vars.ppc$loaded then
+                        UDO_PKG_CONV$ppc$vars := PARUS.UDO_PKG_CONV$ppc$load();
+                      end if;
+                      temp$1$0 := PARUS.UDO_PKG_CONV$unit_table$get((UDO_PKG_CONV$ppc$vars).tbUNIT, false::boolean, sTABLE);
+                      for i in 1::numeric..PARUS.UDO_PKG_CONV$par_table$count(temp$1$0.PARAMS) loop
+                        declare
+                          temp$0$0 boolean;
+                        begin
+                          declare
+                            temp$1$0 PARUS.UDO_PKG_CONV$par_type;
+                            temp$1$1 PARUS.UDO_PKG_CONV$unit_type;
+                          begin
+                            if not UDO_PKG_CONV$ppc$vars.ppc$loaded then
+                              UDO_PKG_CONV$ppc$vars := PARUS.UDO_PKG_CONV$ppc$load();
+                            end if;
+                            temp$1$1 := PARUS.UDO_PKG_CONV$unit_table$get((UDO_PKG_CONV$ppc$vars).tbUNIT, false::boolean, sTABLE);
+                            temp$1$0 := PARUS.UDO_PKG_CONV$par_table$get(temp$1$1.PARAMS, false::boolean, i);
+                            temp$0$0 := temp$1$0.sALIAS is not null;
+                          end;
+                          if temp$0$0 then
+                            declare
+                              temp$4$0 PARUS.UDO_PKG_CONV$par_type;
+                              temp$4$1 PARUS.UDO_PKG_CONV$unit_type;
+                            begin
+                              if not UDO_PKG_CONV$ppc$vars.ppc$loaded then
+                                UDO_PKG_CONV$ppc$vars := PARUS.UDO_PKG_CONV$ppc$load();
+                              end if;
+                              temp$4$1 := PARUS.UDO_PKG_CONV$unit_table$get((UDO_PKG_CONV$ppc$vars).tbUNIT, false::boolean, sTABLE);
+                              temp$4$0 := PARUS.UDO_PKG_CONV$par_table$get(temp$4$1.PARAMS, false::boolean, i);
+                              UDO_PKG_CONV$ppc$vars.ppc$loaded := false;
+                              if not UDO_PKG_CONV$ppc$vars.ppc$saved then
+                                perform PARUS.UDO_PKG_CONV$ppc$save(UDO_PKG_CONV$ppc$vars);
+                                UDO_PKG_CONV$ppc$vars.ppc$saved := true;
+                              end if;
+                              unit.FILTER := public.replace(unit.FILTER, ('<'::character varying OPERATOR(public.||) temp$4$0.sNAME OPERATOR(public.||)
+                                '>'::character varying), PARUS.UDO_PKG_CONV$FORMAT_VALUE(coalesce(cast(coalesce(cast(temp$4$0.sVALUE as character
+                                varying(4000)), cast(PARUS.UDO_PKG_CONV$FR_TO_CHAR(temp$4$0.nVALUE) as character varying(4000))) as character varying),
+                                cast(PARUS.DECODE_DATE(temp$4$0.dVALUE) as character varying)), temp$4$0.nTYPE));
+                            end;
+                          end if;
+                        end;
+                      end loop;
+                    end;
+                  end if;
+                  if ((public.instr(unit.FILTER, '<'::character varying) OPERATOR(public.>) 0::numeric) and (public.instr(unit.FILTER, '>'::character varying)
+                    OPERATOR(public.>) 0::numeric)) then
+                    bFILTER_AFTER := true::boolean;
+                  else
+                    begin
+                      UDO_PKG_CONV$ppc$vars.ppc$loaded := false;
+                      if not UDO_PKG_CONV$ppc$vars.ppc$saved then
+                        perform PARUS.UDO_PKG_CONV$ppc$save(UDO_PKG_CONV$ppc$vars);
+                        UDO_PKG_CONV$ppc$vars.ppc$saved := true;
+                      end if;
+                      bFILTER := PARUS.UDO_PKG_CONV$FILTER_CHECK(sUNIT, unit.PROC_NAME, unit.FILTER);
+                    end;
+                  end if;
+                end if;
+                if (bFILTER) then
+                  bUK_EXIST := false::boolean;
+                  for num in 1::numeric..5::numeric loop
+                    declare
+                      temp$3$0 PARUS.UDO_PKG_CONV$unit_type;
+                    begin
+                      if not UDO_PKG_CONV$ppc$vars.ppc$loaded then
+                        UDO_PKG_CONV$ppc$vars := PARUS.UDO_PKG_CONV$ppc$load();
+                      end if;
+                      temp$3$0 := PARUS.UDO_PKG_CONV$unit_table$get((UDO_PKG_CONV$ppc$vars).tbUNIT, false::boolean, sUNIT);
+                      bUK_EXIST := bUK_EXIST or PARUS.UDO_PKG_CONV$where_table$exists(temp$3$0.SQL_WHERE, num);
+                    end;
+                  end loop;
+                  bUK_CHANGE := false::boolean;
+                  bUK_ALL_NULL := true::boolean;
+                  declare
+                    par record;
+                  begin
+                    for par in (
+                        select
+                          p.*,
+                          p.DATA_TYPE as DATA_TYPE_SOURCE
+                        from
+                          PARUS.UDO_T_CONV_PARAMS p
+                        where
+                          (p.PRN OPERATOR(public.=) unit.RN)
+                          and p.VALUE_CONTEXT in (0::numeric, 1::numeric, 8::numeric)
+                          order by p.KEY_UNIQUE desc, p.NUMB
+                        ) loop
+                      exit
+                        when((par.KEY_UNIQUE OPERATOR(public.=) 0::numeric)) and bUK_EXIST and (bUK_ALL_NULL or not bUK_CHANGE) and unit.ONLY_FOUND in
+                          (0::numeric, 1::numeric);
+                      sVALUE := null;
+                      if (par.VALUE_CONCEPT is not null) then
+                        declare
+                          temp$1$0 PARUS.UDO_PKG_CONV$unit_type;
+                        begin
+                          if not UDO_PKG_CONV$ppc$vars.ppc$loaded then
+                            UDO_PKG_CONV$ppc$vars := PARUS.UDO_PKG_CONV$ppc$load();
+                          end if;
+                          temp$1$0 := PARUS.UDO_PKG_CONV$unit_table$get((UDO_PKG_CONV$ppc$vars).tbUNIT, false::boolean, sTABLE);
+                          for i in 1::numeric..PARUS.UDO_PKG_CONV$par_table$count(temp$1$0.PARAMS) loop
+                            declare
+                              temp$0$0 boolean;
+                            begin
+                              declare
+                                temp$1$0 PARUS.UDO_PKG_CONV$par_type;
+                                temp$1$1 PARUS.UDO_PKG_CONV$unit_type;
+                              begin
+                                if not UDO_PKG_CONV$ppc$vars.ppc$loaded then
+                                  UDO_PKG_CONV$ppc$vars := PARUS.UDO_PKG_CONV$ppc$load();
+                                end if;
+                                temp$1$1 := PARUS.UDO_PKG_CONV$unit_table$get((UDO_PKG_CONV$ppc$vars).tbUNIT, false::boolean, sTABLE);
+                                temp$1$0 := PARUS.UDO_PKG_CONV$par_table$get(temp$1$1.PARAMS, false::boolean, i);
+                                temp$0$0 := ((temp$1$0.sALIAS OPERATOR(public.=) (('p'::character varying::character varying OPERATOR(public.||)
+                                  public.to_char(par.VALUE_CONCEPT)))));
+                              end;
+                              if temp$0$0 then
+                                declare
+                                  temp$4$0 PARUS.UDO_PKG_CONV$par_type;
+                                  temp$4$1 PARUS.UDO_PKG_CONV$unit_type;
+                                begin
+                                  if not UDO_PKG_CONV$ppc$vars.ppc$loaded then
+                                    UDO_PKG_CONV$ppc$vars := PARUS.UDO_PKG_CONV$ppc$load();
+                                  end if;
+                                  temp$4$1 := PARUS.UDO_PKG_CONV$unit_table$get((UDO_PKG_CONV$ppc$vars).tbUNIT, false::boolean, sTABLE);
+                                  temp$4$0 := PARUS.UDO_PKG_CONV$par_table$get(temp$4$1.PARAMS, false::boolean, i);
+                                  UDO_PKG_CONV$ppc$vars.ppc$loaded := false;
+                                  if not UDO_PKG_CONV$ppc$vars.ppc$saved then
+                                    perform PARUS.UDO_PKG_CONV$ppc$save(UDO_PKG_CONV$ppc$vars);
+                                    UDO_PKG_CONV$ppc$vars.ppc$saved := true;
+                                  end if;
+                                  sVALUE := coalesce(cast(coalesce(cast(temp$4$0.sVALUE as character varying(4000)),
+                                    cast(PARUS.UDO_PKG_CONV$FR_TO_CHAR(temp$4$0.nVALUE) as character varying(4000))) as character varying),
+                                    cast(PARUS.DECODE_DATE(temp$4$0.dVALUE) as character varying));
+                                end;
+                                declare
+                                  temp$2$0 PARUS.UDO_PKG_CONV$par_type;
+                                  temp$2$1 PARUS.UDO_PKG_CONV$unit_type;
+                                begin
+                                  if not UDO_PKG_CONV$ppc$vars.ppc$loaded then
+                                    UDO_PKG_CONV$ppc$vars := PARUS.UDO_PKG_CONV$ppc$load();
+                                  end if;
+                                  temp$2$1 := PARUS.UDO_PKG_CONV$unit_table$get((UDO_PKG_CONV$ppc$vars).tbUNIT, false::boolean, sTABLE);
+                                  temp$2$0 := PARUS.UDO_PKG_CONV$par_table$get(temp$2$1.PARAMS, false::boolean, i);
+                                  par.DATA_TYPE_SOURCE := temp$2$0.nTYPE;
+                                end;
+                                exit;
+                              end if;
+                            end;
+                          end loop;
+                        end;
+                      end if;
+                      if (sVALUE is null and par.VALUE_PARENT is not null) then
+                        declare
+                          src record;
+                        begin
+                          for src in (
+                              select
+                                public.to_char(p2.PRN) sUNIT,
+                                p2.NUMB,
+                                p2.DATA_TYPE
+                              from
+                                PARUS.UDO_T_CONV_PARAMS p2
+                              where
+                                (p2.RN OPERATOR(public.=) par.VALUE_PARENT)
+                              ) loop
+                            declare
+                              temp$4$0 PARUS.UDO_PKG_CONV$par_type;
+                              temp$4$1 PARUS.UDO_PKG_CONV$unit_type;
+                            begin
+                              if not UDO_PKG_CONV$ppc$vars.ppc$loaded then
+                                UDO_PKG_CONV$ppc$vars := PARUS.UDO_PKG_CONV$ppc$load();
+                              end if;
+                              temp$4$1 := PARUS.UDO_PKG_CONV$unit_table$get((UDO_PKG_CONV$ppc$vars).tbUNIT, false::boolean, src.sUNIT);
+                              temp$4$0 := PARUS.UDO_PKG_CONV$par_table$get(temp$4$1.PARAMS, false::boolean, src.NUMB);
+                              UDO_PKG_CONV$ppc$vars.ppc$loaded := false;
+                              if not UDO_PKG_CONV$ppc$vars.ppc$saved then
+                                perform PARUS.UDO_PKG_CONV$ppc$save(UDO_PKG_CONV$ppc$vars);
+                                UDO_PKG_CONV$ppc$vars.ppc$saved := true;
+                              end if;
+                              sVALUE := coalesce(cast(coalesce(cast(temp$4$0.sVALUE as character varying(4000)),
+                                cast(PARUS.UDO_PKG_CONV$FR_TO_CHAR(temp$4$0.nVALUE) as character varying(4000))) as character varying),
+                                cast(PARUS.DECODE_DATE(temp$4$0.dVALUE) as character varying));
+                            end;
+                            par.DATA_TYPE_SOURCE := src.DATA_TYPE;
+                          end loop;
+                        end;
+                      end if;
+                      if (sVALUE is null and par.VALUE_DEFAULT is not null) then
+                        sVALUE := par.VALUE_DEFAULT;
+                      end if;
+                      if ((par.VALUE_TRIM OPERATOR(public.=) 1::numeric)) then
+                        sVALUE := public.btrim(sVALUE);
+                      end if;
+                      if (public.btrim(par.VALUE_FUNC) is not null) then
+                        UDO_PKG_CONV$ppc$vars$tmp.sSQLTEXT := ('select '::character varying OPERATOR(public.||) public.replace(par.VALUE_FUNC,
+                          '<VALUE>'::character varying, PARUS.UDO_PKG_CONV$FORMAT_VALUE(sVALUE, par.DATA_TYPE_SOURCE)) OPERATOR(public.||)
+                          ' into :VALUE from dual'::character varying);
+                        if not UDO_PKG_CONV$ppc$vars.ppc$loaded then
+                          UDO_PKG_CONV$ppc$vars := PARUS.UDO_PKG_CONV$ppc$load();
+                        end if;
+                        UDO_PKG_CONV$ppc$vars.sSQLTEXT := (UDO_PKG_CONV$ppc$vars$tmp).sSQLTEXT;
+                        UDO_PKG_CONV$ppc$vars.ppc$saved := false;
+                        declare
+                          temp$0$0 boolean;
+                        begin
+                          if not UDO_PKG_CONV$ppc$vars.ppc$loaded then
+                            UDO_PKG_CONV$ppc$vars := PARUS.UDO_PKG_CONV$ppc$load();
+                          end if;
+                          temp$0$0 := ((public.instr((UDO_PKG_CONV$ppc$vars).sSQLTEXT, '<'::character varying::character varying) OPERATOR(public.>)
+                            0::numeric::numeric)) and ((public.instr((UDO_PKG_CONV$ppc$vars).sSQLTEXT, '>'::character varying::character varying)
+                            OPERATOR(public.>) 0::numeric::numeric));
+                          if temp$0$0 then
+                            declare
+                              temp$1$0 PARUS.UDO_PKG_CONV$unit_type;
+                            begin
+                              if not UDO_PKG_CONV$ppc$vars.ppc$loaded then
+                                UDO_PKG_CONV$ppc$vars := PARUS.UDO_PKG_CONV$ppc$load();
+                              end if;
+                              temp$1$0 := PARUS.UDO_PKG_CONV$unit_table$get((UDO_PKG_CONV$ppc$vars).tbUNIT, false::boolean, sTABLE);
+                              for i in 1::numeric..PARUS.UDO_PKG_CONV$par_table$count(temp$1$0.PARAMS) loop
+                                declare
+                                  temp$0$0 boolean;
+                                begin
+                                  declare
+                                    temp$1$0 PARUS.UDO_PKG_CONV$par_type;
+                                    temp$1$1 PARUS.UDO_PKG_CONV$unit_type;
+                                  begin
+                                    if not UDO_PKG_CONV$ppc$vars.ppc$loaded then
+                                      UDO_PKG_CONV$ppc$vars := PARUS.UDO_PKG_CONV$ppc$load();
+                                    end if;
+                                    temp$1$1 := PARUS.UDO_PKG_CONV$unit_table$get((UDO_PKG_CONV$ppc$vars).tbUNIT, false::boolean, sTABLE);
+                                    temp$1$0 := PARUS.UDO_PKG_CONV$par_table$get(temp$1$1.PARAMS, false::boolean, i);
+                                    temp$0$0 := temp$1$0.sALIAS is not null;
+                                  end;
+                                  if temp$0$0 then
+                                    declare
+                                      temp$4$0 PARUS.UDO_PKG_CONV$par_type;
+                                      temp$4$1 PARUS.UDO_PKG_CONV$unit_type;
+                                    begin
+                                      if not UDO_PKG_CONV$ppc$vars.ppc$loaded then
+                                        UDO_PKG_CONV$ppc$vars := PARUS.UDO_PKG_CONV$ppc$load();
+                                      end if;
+                                      temp$4$1 := PARUS.UDO_PKG_CONV$unit_table$get((UDO_PKG_CONV$ppc$vars).tbUNIT, false::boolean, sTABLE);
+                                      temp$4$0 := PARUS.UDO_PKG_CONV$par_table$get(temp$4$1.PARAMS, false::boolean, i);
+                                      UDO_PKG_CONV$ppc$vars.ppc$loaded := false;
+                                      if not UDO_PKG_CONV$ppc$vars.ppc$saved then
+                                        perform PARUS.UDO_PKG_CONV$ppc$save(UDO_PKG_CONV$ppc$vars);
+                                        UDO_PKG_CONV$ppc$vars.ppc$saved := true;
+                                      end if;
+                                      UDO_PKG_CONV$ppc$vars$tmp.sSQLTEXT := public.replace((UDO_PKG_CONV$ppc$vars).sSQLTEXT, ('<'::character varying
+                                        OPERATOR(public.||) temp$4$0.sNAME OPERATOR(public.||) '>'::character varying),
+                                        PARUS.UDO_PKG_CONV$FORMAT_VALUE(coalesce(cast(coalesce(cast(temp$4$0.sVALUE as character varying(4000)),
+                                        cast(PARUS.UDO_PKG_CONV$FR_TO_CHAR(temp$4$0.nVALUE) as character varying(4000))) as character varying),
+                                        cast(PARUS.DECODE_DATE(temp$4$0.dVALUE) as character varying)), temp$4$0.nTYPE));
+                                      if not UDO_PKG_CONV$ppc$vars.ppc$loaded then
+                                        UDO_PKG_CONV$ppc$vars := PARUS.UDO_PKG_CONV$ppc$load();
+                                      end if;
+                                      UDO_PKG_CONV$ppc$vars.sSQLTEXT := (UDO_PKG_CONV$ppc$vars$tmp).sSQLTEXT;
+                                      UDO_PKG_CONV$ppc$vars.ppc$saved := false;
+                                    end;
+                                  end if;
+                                end;
+                              end loop;
+                            end;
+                          end if;
+                        end;
+                        if not UDO_PKG_CONV$ppc$vars.ppc$loaded then
+                          UDO_PKG_CONV$ppc$vars := PARUS.UDO_PKG_CONV$ppc$load();
+                        end if;
+                        UDO_PKG_CONV$ppc$vars$tmp.sSQLTEXT := public.replace((UDO_PKG_CONV$ppc$vars).sSQLTEXT, '<COMPANY>'::character varying,
+                          public.to_char((UDO_PKG_CONV$ppc$vars).nCOMPANY_TO));
+                        if not UDO_PKG_CONV$ppc$vars.ppc$loaded then
+                          UDO_PKG_CONV$ppc$vars := PARUS.UDO_PKG_CONV$ppc$load();
+                        end if;
+                        UDO_PKG_CONV$ppc$vars.sSQLTEXT := (UDO_PKG_CONV$ppc$vars$tmp).sSQLTEXT;
+                        UDO_PKG_CONV$ppc$vars.ppc$saved := false;
+                        if not UDO_PKG_CONV$ppc$vars.ppc$loaded then
+                          UDO_PKG_CONV$ppc$vars := PARUS.UDO_PKG_CONV$ppc$load();
+                        end if;
+                        UDO_PKG_CONV$ppc$vars$tmp.sSQLTEXT := public.replace((UDO_PKG_CONV$ppc$vars).sSQLTEXT, '<DOCUMENT>'::character varying,
+                          public.to_char(buff."DOCUMENT"));
+                        if not UDO_PKG_CONV$ppc$vars.ppc$loaded then
+                          UDO_PKG_CONV$ppc$vars := PARUS.UDO_PKG_CONV$ppc$load();
+                        end if;
+                        UDO_PKG_CONV$ppc$vars.sSQLTEXT := (UDO_PKG_CONV$ppc$vars$tmp).sSQLTEXT;
+                        UDO_PKG_CONV$ppc$vars.ppc$saved := false;
+                        if not UDO_PKG_CONV$ppc$vars.ppc$loaded then
+                          UDO_PKG_CONV$ppc$vars := PARUS.UDO_PKG_CONV$ppc$load();
+                        end if;
+                        UDO_PKG_CONV$ppc$vars$tmp.sSQLTEXT := public.replace((UDO_PKG_CONV$ppc$vars).sSQLTEXT, '<UNITCODE>'::character varying,
+                          PARUS.UDO_PKG_CONV$FORMAT_VALUE(unit.UNITCODE, 0::numeric));
+                        if not UDO_PKG_CONV$ppc$vars.ppc$loaded then
+                          UDO_PKG_CONV$ppc$vars := PARUS.UDO_PKG_CONV$ppc$load();
+                        end if;
+                        UDO_PKG_CONV$ppc$vars.sSQLTEXT := (UDO_PKG_CONV$ppc$vars$tmp).sSQLTEXT;
+                        UDO_PKG_CONV$ppc$vars.ppc$saved := false;
+                        declare
+                          temp$5$0 PARUS.UDO_PKG_CONV$par_type;
+                          temp$5$1 PARUS.UDO_PKG_CONV$unit_type;
+                        begin
+                          if not UDO_PKG_CONV$ppc$vars.ppc$loaded then
+                            UDO_PKG_CONV$ppc$vars := PARUS.UDO_PKG_CONV$ppc$load();
+                          end if;
+                          temp$5$1 := PARUS.UDO_PKG_CONV$unit_table$get((UDO_PKG_CONV$ppc$vars).tbUNIT, false::boolean, sTABLE);
+                          temp$5$0 := PARUS.UDO_PKG_CONV$par_table$get(temp$5$1.PARAMS, false::boolean, 1::numeric);
+                          UDO_PKG_CONV$ppc$vars$tmp.sSQLTEXT := public.replace((UDO_PKG_CONV$ppc$vars).sSQLTEXT, '<ROWNUM>'::character varying,
+                            public.to_char(temp$5$0.nVALUE));
+                          if not UDO_PKG_CONV$ppc$vars.ppc$loaded then
+                            UDO_PKG_CONV$ppc$vars := PARUS.UDO_PKG_CONV$ppc$load();
+                          end if;
+                          UDO_PKG_CONV$ppc$vars.sSQLTEXT := (UDO_PKG_CONV$ppc$vars$tmp).sSQLTEXT;
+                          UDO_PKG_CONV$ppc$vars.ppc$saved := false;
+                        end;
+                        declare
+                          temp$5$0 PARUS.UDO_PKG_CONV$par_type;
+                          temp$5$1 PARUS.UDO_PKG_CONV$unit_type;
+                        begin
+                          if not UDO_PKG_CONV$ppc$vars.ppc$loaded then
+                            UDO_PKG_CONV$ppc$vars := PARUS.UDO_PKG_CONV$ppc$load();
+                          end if;
+                          temp$5$1 := PARUS.UDO_PKG_CONV$unit_table$get((UDO_PKG_CONV$ppc$vars).tbUNIT, false::boolean, sTABLE);
+                          temp$5$0 := PARUS.UDO_PKG_CONV$par_table$get(temp$5$1.PARAMS, false::boolean, 2::numeric);
+                          UDO_PKG_CONV$ppc$vars$tmp.sSQLTEXT := public.replace((UDO_PKG_CONV$ppc$vars).sSQLTEXT, '<ROWRN>'::character varying,
+                            public.to_char(temp$5$0.nVALUE));
+                          if not UDO_PKG_CONV$ppc$vars.ppc$loaded then
+                            UDO_PKG_CONV$ppc$vars := PARUS.UDO_PKG_CONV$ppc$load();
+                          end if;
+                          UDO_PKG_CONV$ppc$vars.sSQLTEXT := (UDO_PKG_CONV$ppc$vars$tmp).sSQLTEXT;
+                          UDO_PKG_CONV$ppc$vars.ppc$saved := false;
+                        end;
+                        if ((par.DATA_TYPE OPERATOR(public.=) 2::numeric)) then
+                          if not UDO_PKG_CONV$ppc$vars.ppc$loaded then
+                            UDO_PKG_CONV$ppc$vars := PARUS.UDO_PKG_CONV$ppc$load();
+                          end if;
+                          UDO_PKG_CONV$ppc$vars.ppc$loaded := false;
+                          if not UDO_PKG_CONV$ppc$vars.ppc$saved then
+                            perform PARUS.UDO_PKG_CONV$ppc$save(UDO_PKG_CONV$ppc$vars);
+                            UDO_PKG_CONV$ppc$vars.ppc$saved := true;
+                          end if;
+                          execute ppc$sql$translate((UDO_PKG_CONV$ppc$vars).sSQLTEXT)
+                          into strict
+                            dVALUE;
+                          perform ppc$sql$finalize();
+                          if ((dVALUE OPERATOR(public.<>) public.trunc(dVALUE))) then
+                            sVALUE := public.to_char(dVALUE, 'DD.MM.YYYY hh24:mi:ss'::character varying);
+                          else
+                            sVALUE := public.to_char(dVALUE, 'DD.MM.YYYY'::character varying);
+                          end if;
+                        else
+                          begin
+                            if not UDO_PKG_CONV$ppc$vars.ppc$loaded then
+                              UDO_PKG_CONV$ppc$vars := PARUS.UDO_PKG_CONV$ppc$load();
+                            end if;
+                            UDO_PKG_CONV$ppc$vars.ppc$loaded := false;
+                            if not UDO_PKG_CONV$ppc$vars.ppc$saved then
+                              perform PARUS.UDO_PKG_CONV$ppc$save(UDO_PKG_CONV$ppc$vars);
+                              UDO_PKG_CONV$ppc$vars.ppc$saved := true;
+                            end if;
+                            execute ppc$sql$translate((UDO_PKG_CONV$ppc$vars).sSQLTEXT)
+                            into strict
+                              sVALUE;
+                            perform ppc$sql$finalize();
+                          end;
+                        end if;
+                      end if;
+                      if ((par.VALUE_TRIM OPERATOR(public.=) 1::numeric)) then
+                        sVALUE := public.btrim(sVALUE);
+                      end if;
+                      if ((par.VALUE_CONTEXT OPERATOR(public.=) 8::numeric) and sVALUE is not null) then
+                        select
+                          max(public.to_char(k.KEY_RN))
+                        into strict
+                          sVALUE
+                        from
+                          PARUS.UDO_T_CONV_KEYS k
+                        where
+                          (k.KEY_EXT OPERATOR(public.=) sVALUE);
+                      end if;
+                      declare
+                        dom PARUS.DMSENUMVALUES;
+                      begin
+                        for dom in (
+                            select
+                              dmv.*
+                            from
+                              PARUS.DMSDOMAINS dm,
+                              PARUS.DMSENUMVALUES dmv
+                            where
+                              (dm.CODE OPERATOR(public.=) par.DOMAIN_CODE)
+                              and (dm.RN OPERATOR(public.=) dmv.PRN)
+                              and (public.upper(dmv."NAME") OPERATOR(public.=) public.upper(public.btrim(sVALUE)))
+                              order by dmv."POSITION"
+                            ) loop
+                          UDO_PKG_CONV$ppc$vars.ppc$loaded := false;
+                          if not UDO_PKG_CONV$ppc$vars.ppc$saved then
+                            perform PARUS.UDO_PKG_CONV$ppc$save(UDO_PKG_CONV$ppc$vars);
+                            UDO_PKG_CONV$ppc$vars.ppc$saved := true;
+                          end if;
+                          sVALUE := coalesce(cast(coalesce(cast(coalesce(cast(dom.VALUE_STR as character varying),
+                            cast(PARUS.UDO_PKG_CONV$FR_TO_CHAR(dom.VALUE_NUM) as character varying)) as character varying),
+                            cast(PARUS.DECODE_DATE(dom.VALUE_DATE) as character varying)) as character varying(4000)), cast(sVALUE as character
+                            varying(4000)));
+                          exit;
+                        end loop;
+                      end;
+                      if (par.DATA_TYPE in (0::numeric, 1::numeric) and (par.DATA_LENGTH OPERATOR(public.<) public.length(sVALUE)) and (par.VALUE_CONTEXT
+                        OPERATOR(public.<>) 1::numeric)) then
+                        begin
+                          UDO_PKG_CONV$ppc$vars.ppc$loaded := false;
+                          if not UDO_PKG_CONV$ppc$vars.ppc$saved then
+                            perform PARUS.UDO_PKG_CONV$ppc$save(UDO_PKG_CONV$ppc$vars);
+                            UDO_PKG_CONV$ppc$vars.ppc$saved := true;
+                          end if;
+                          perform PARUS.P_EXCEPTION(0::numeric, ('Превышена длина параметра "'::character varying OPERATOR(public.||) par.PARAM_CODE
+                            OPERATOR(public.||) '" в разделе "'::character varying OPERATOR(public.||) unit.UNITCODE OPERATOR(public.||)
+                            '". Длина поля = '::character varying OPERATOR(public.||) public.to_char(par.DATA_LENGTH) OPERATOR(public.||)
+                            '. Длина значения = '::character varying OPERATOR(public.||) public.to_char(public.length(sVALUE)) OPERATOR(public.||)
+                            '.'::character varying));
+                        end;
+                      end if;
+                      if ((par.GEN_UNIQUE OPERATOR(public.=) 1::numeric)) then
+                        if ((par.DATA_TYPE OPERATOR(public.<>) 0::numeric)) then
+                          begin
+                            UDO_PKG_CONV$ppc$vars.ppc$loaded := false;
+                            if not UDO_PKG_CONV$ppc$vars.ppc$saved then
+                              perform PARUS.UDO_PKG_CONV$ppc$save(UDO_PKG_CONV$ppc$vars);
+                              UDO_PKG_CONV$ppc$vars.ppc$saved := true;
+                            end if;
+                            perform PARUS.P_EXCEPTION(0::numeric, ('Параметр "'::character varying OPERATOR(public.||) par.PARAM_CODE OPERATOR(public.||)
+                              '" в разделе "'::character varying OPERATOR(public.||) unit.UNITCODE OPERATOR(public.||)
+                              '" не строковый. Сгенерить уникальное значение не возможно.'::character varying));
+                          end;
+                        end if;
+                        if (par.ALIAS_NAME is null) then
+                          begin
+                            UDO_PKG_CONV$ppc$vars.ppc$loaded := false;
+                            if not UDO_PKG_CONV$ppc$vars.ppc$saved then
+                              perform PARUS.UDO_PKG_CONV$ppc$save(UDO_PKG_CONV$ppc$vars);
+                              UDO_PKG_CONV$ppc$vars.ppc$saved := true;
+                            end if;
+                            perform PARUS.P_EXCEPTION(0::numeric, ('Поле соответсвующее параметру "'::character varying OPERATOR(public.||) par.PARAM_CODE
+                              OPERATOR(public.||) '" в разделе "'::character varying OPERATOR(public.||) unit.UNITCODE OPERATOR(public.||)
+                              '" не определено. Сгенерить уникальное значение не возможно.'::character varying));
+                          end;
+                        end if;
+                        if ((par.DATA_LENGTH OPERATOR(public.>) 0::numeric)) then
+                          null;
+                        else
+                          begin
+                            UDO_PKG_CONV$ppc$vars.ppc$loaded := false;
+                            if not UDO_PKG_CONV$ppc$vars.ppc$saved then
+                              perform PARUS.UDO_PKG_CONV$ppc$save(UDO_PKG_CONV$ppc$vars);
+                              UDO_PKG_CONV$ppc$vars.ppc$saved := true;
+                            end if;
+                            perform PARUS.P_EXCEPTION(0::numeric, ('Длина параметра "'::character varying OPERATOR(public.||) par.PARAM_CODE
+                              OPERATOR(public.||) '" в разделе "'::character varying OPERATOR(public.||) unit.UNITCODE OPERATOR(public.||)
+                              '" не определена. Сгенерить уникальное значение не возможно.'::character varying));
+                          end;
+                        end if;
+                        declare
+                          temp$0$0 boolean;
+                        begin
+                          declare
+                            temp$1$0 PARUS.UDO_PKG_CONV$unit_type;
+                          begin
+                            if not UDO_PKG_CONV$ppc$vars.ppc$loaded then
+                              UDO_PKG_CONV$ppc$vars := PARUS.UDO_PKG_CONV$ppc$load();
+                            end if;
+                            temp$1$0 := PARUS.UDO_PKG_CONV$unit_table$get((UDO_PKG_CONV$ppc$vars).tbUNIT, false::boolean, sUNIT);
+                            temp$0$0 := PARUS.UDO_PKG_CONV$where_table$exists(temp$1$0.SQL_WHERE, 7::numeric::numeric);
+                          end;
+                          if temp$0$0 then
+                            declare
+                              temp$8$0 character varying(4000);
+                              temp$8$1 PARUS.UDO_PKG_CONV$unit_type;
+                            begin
+                              if not UDO_PKG_CONV$ppc$vars.ppc$loaded then
+                                UDO_PKG_CONV$ppc$vars := PARUS.UDO_PKG_CONV$ppc$load();
+                              end if;
+                              temp$8$1 := PARUS.UDO_PKG_CONV$unit_table$get((UDO_PKG_CONV$ppc$vars).tbUNIT, false::boolean, sUNIT);
+                              temp$8$0 := PARUS.UDO_PKG_CONV$where_table$get(temp$8$1.SQL_WHERE, false::boolean, 7::numeric);
+                              UDO_PKG_CONV$ppc$vars.ppc$loaded := false;
+                              if not UDO_PKG_CONV$ppc$vars.ppc$saved then
+                                perform PARUS.UDO_PKG_CONV$ppc$save(UDO_PKG_CONV$ppc$vars);
+                                UDO_PKG_CONV$ppc$vars.ppc$saved := true;
+                              end if;
+                              sVALUE := PARUS.UDO_PKG_CONV$GET_VALUE_UNIQUE(unit.VIEW_NAME, par.ALIAS_NAME, par.DATA_LENGTH, sVALUE, par.VALUE_PADDING,
+                                temp$8$0);
+                            end;
+                            if (sVALUE is null) then
+                              begin
+                                UDO_PKG_CONV$ppc$vars.ppc$loaded := false;
+                                if not UDO_PKG_CONV$ppc$vars.ppc$saved then
+                                  perform PARUS.UDO_PKG_CONV$ppc$save(UDO_PKG_CONV$ppc$vars);
+                                  UDO_PKG_CONV$ppc$vars.ppc$saved := true;
+                                end if;
+                                perform PARUS.P_EXCEPTION(0::numeric, ('Не удалось подобрать уникальное значение для параметра "'::character varying
+                                  OPERATOR(public.||) par.PARAM_CODE OPERATOR(public.||) '" в разделе "'::character varying OPERATOR(public.||) unit.UNITCODE
+                                  OPERATOR(public.||) '".'::character varying));
+                              end;
+                            end if;
+                          end if;
+                        end;
+                        if ((par.COLUMN_NOTNULL OPERATOR(public.=) 1::numeric) and sVALUE is null) then
+                          begin
+                            UDO_PKG_CONV$ppc$vars.ppc$loaded := false;
+                            if not UDO_PKG_CONV$ppc$vars.ppc$saved then
+                              perform PARUS.UDO_PKG_CONV$ppc$save(UDO_PKG_CONV$ppc$vars);
+                              UDO_PKG_CONV$ppc$vars.ppc$saved := true;
+                            end if;
+                            perform PARUS.P_EXCEPTION(0::numeric, ('Не задано значение обязательного параметра "'::character varying OPERATOR(public.||)
+                              par.PARAM_CODE OPERATOR(public.||) '" в разделе "'::character varying OPERATOR(public.||) unit.UNITCODE OPERATOR(public.||)
+                              '".'::character varying));
+                          end;
+                        end if;
+                      end if;
+                      if ((par.VALUE_PADDING OPERATOR(public.=) 1::numeric)) then
+                        if ((par.DATA_LENGTH OPERATOR(public.>) 0::numeric)) then
+                          sVALUE := public.lpad(sVALUE, par.DATA_LENGTH, ' '::character varying);
+                        else
+                          begin
+                            UDO_PKG_CONV$ppc$vars.ppc$loaded := false;
+                            if not UDO_PKG_CONV$ppc$vars.ppc$saved then
+                              perform PARUS.UDO_PKG_CONV$ppc$save(UDO_PKG_CONV$ppc$vars);
+                              UDO_PKG_CONV$ppc$vars.ppc$saved := true;
+                            end if;
+                            perform PARUS.P_EXCEPTION(0::numeric, ('Длина параметра "'::character varying OPERATOR(public.||) par.PARAM_CODE
+                              OPERATOR(public.||) '" в разделе "'::character varying OPERATOR(public.||) unit.UNITCODE OPERATOR(public.||)
+                              '" не определена. Выравнить значение пробелами слева не возможно.'::character varying));
+                          end;
+                        end if;
+                      end if;
+                      declare
+                        temp$0$0 boolean;
+                      begin
+                        declare
+                          temp$3$0 PARUS.UDO_PKG_CONV$par_type;
+                          temp$3$1 PARUS.UDO_PKG_CONV$unit_type;
+                        begin
+                          if not UDO_PKG_CONV$ppc$vars.ppc$loaded then
+                            UDO_PKG_CONV$ppc$vars := PARUS.UDO_PKG_CONV$ppc$load();
+                          end if;
+                          temp$3$1 := PARUS.UDO_PKG_CONV$unit_table$get((UDO_PKG_CONV$ppc$vars).tbUNIT, false::boolean, sUNIT);
+                          temp$3$0 := PARUS.UDO_PKG_CONV$par_table$get(temp$3$1.PARAMS, false::boolean, par.NUMB);
+                          temp$0$0 := ((PARUS.CMP_VC2(sVALUE, temp$3$0.sVALUE) OPERATOR(public.=) 0::numeric::numeric));
+                        end;
+                        if temp$0$0 then
+                          declare
+                            temp$1$0 PARUS.UDO_PKG_CONV$par_type;
+                            temp$1$1 PARUS.UDO_PKG_CONV$unit_type;
+                          begin
+                            if not UDO_PKG_CONV$ppc$vars.ppc$loaded then
+                              UDO_PKG_CONV$ppc$vars := PARUS.UDO_PKG_CONV$ppc$load();
+                            end if;
+                            temp$1$1 := PARUS.UDO_PKG_CONV$unit_table$get((UDO_PKG_CONV$ppc$vars).tbUNIT, true::boolean, sUNIT);
+                            temp$1$0 := PARUS.UDO_PKG_CONV$par_table$get(temp$1$1.PARAMS, true::boolean, par.NUMB);
+                            temp$1$0.sVALUE := sVALUE;
+                            select
+                              PARUS.UDO_PKG_CONV$par_table$put(temp$1$1.PARAMS, par.NUMB, temp$1$0)
+                            into
+                              temp$1$1.PARAMS;
+                            select
+                              PARUS.UDO_PKG_CONV$unit_table$put((UDO_PKG_CONV$ppc$vars).tbUNIT, sUNIT, temp$1$1)
+                            into
+                              UDO_PKG_CONV$ppc$vars$tmp.tbUNIT;
+                            if not UDO_PKG_CONV$ppc$vars.ppc$loaded then
+                              UDO_PKG_CONV$ppc$vars := PARUS.UDO_PKG_CONV$ppc$load();
+                            end if;
+                            UDO_PKG_CONV$ppc$vars.tbUNIT := (UDO_PKG_CONV$ppc$vars$tmp).tbUNIT;
+                            UDO_PKG_CONV$ppc$vars.ppc$saved := false;
+                          end;
+                          if ((par.DATA_TYPE OPERATOR(public.=) 1::numeric) and (par.VALUE_CONTEXT OPERATOR(public.<>) 1::numeric)) then
+                            begin
+                              declare
+                                temp$2$0 PARUS.UDO_PKG_CONV$par_type;
+                                temp$2$1 PARUS.UDO_PKG_CONV$unit_type;
+                              begin
+                                if not UDO_PKG_CONV$ppc$vars.ppc$loaded then
+                                  UDO_PKG_CONV$ppc$vars := PARUS.UDO_PKG_CONV$ppc$load();
+                                end if;
+                                temp$2$1 := PARUS.UDO_PKG_CONV$unit_table$get((UDO_PKG_CONV$ppc$vars).tbUNIT, false::boolean, sUNIT);
+                                temp$2$0 := PARUS.UDO_PKG_CONV$par_table$get(temp$2$1.PARAMS, false::boolean, par.NUMB);
+                                UDO_PKG_CONV$ppc$vars$tmp.sSQLTEXT := (temp$2$0.sNAME OPERATOR(public.||)
+                                  ' := to_number('''::character varying OPERATOR(public.||) sVALUE OPERATOR(public.||) ''')'::character varying);
+                                if not UDO_PKG_CONV$ppc$vars.ppc$loaded then
+                                  UDO_PKG_CONV$ppc$vars := PARUS.UDO_PKG_CONV$ppc$load();
+                                end if;
+                                UDO_PKG_CONV$ppc$vars.sSQLTEXT := (UDO_PKG_CONV$ppc$vars$tmp).sSQLTEXT;
+                                UDO_PKG_CONV$ppc$vars.ppc$saved := false;
+                              end;
+                              declare
+                                temp$1$0 PARUS.UDO_PKG_CONV$par_type;
+                                temp$1$1 PARUS.UDO_PKG_CONV$unit_type;
+                              begin
+                                UDO_PKG_CONV$ppc$vars.ppc$loaded := false;
+                                if not UDO_PKG_CONV$ppc$vars.ppc$saved then
+                                  perform PARUS.UDO_PKG_CONV$ppc$save(UDO_PKG_CONV$ppc$vars);
+                                  UDO_PKG_CONV$ppc$vars.ppc$saved := true;
+                                end if;
+                                if not UDO_PKG_CONV$ppc$vars.ppc$loaded then
+                                  UDO_PKG_CONV$ppc$vars := PARUS.UDO_PKG_CONV$ppc$load();
+                                end if;
+                                temp$1$1 := PARUS.UDO_PKG_CONV$unit_table$get((UDO_PKG_CONV$ppc$vars).tbUNIT, true::boolean, sUNIT);
+                                temp$1$0 := PARUS.UDO_PKG_CONV$par_table$get(temp$1$1.PARAMS, true::boolean, par.NUMB);
+                                temp$1$0.nVALUE := PARUS.UDO_PKG_CONV$FR_TO_NUMBER(sVALUE);
+                                select
+                                  PARUS.UDO_PKG_CONV$par_table$put(temp$1$1.PARAMS, par.NUMB, temp$1$0)
+                                into
+                                  temp$1$1.PARAMS;
+                                select
+                                  PARUS.UDO_PKG_CONV$unit_table$put((UDO_PKG_CONV$ppc$vars).tbUNIT, sUNIT, temp$1$1)
+                                into
+                                  UDO_PKG_CONV$ppc$vars$tmp.tbUNIT;
+                                if not UDO_PKG_CONV$ppc$vars.ppc$loaded then
+                                  UDO_PKG_CONV$ppc$vars := PARUS.UDO_PKG_CONV$ppc$load();
+                                end if;
+                                UDO_PKG_CONV$ppc$vars.tbUNIT := (UDO_PKG_CONV$ppc$vars$tmp).tbUNIT;
+                                UDO_PKG_CONV$ppc$vars.ppc$saved := false;
+                              end;
+                            exception
+                              when OTHERS then
+                                begin
+                                  UDO_PKG_CONV$ppc$vars.ppc$loaded := false;
+                                  if not UDO_PKG_CONV$ppc$vars.ppc$saved then
+                                    perform PARUS.UDO_PKG_CONV$ppc$save(UDO_PKG_CONV$ppc$vars);
+                                    UDO_PKG_CONV$ppc$vars.ppc$saved := true;
+                                  end if;
+                                  perform PARUS.P_EXCEPTION(0::numeric, ('Ошибка преобразования значения "'::character varying OPERATOR(public.||) sVALUE
+                                    OPERATOR(public.||) '" параметра "'::character varying OPERATOR(public.||) par.PARAM_CODE OPERATOR(public.||)
+                                    '" в разделе "'::character varying OPERATOR(public.||) unit.UNITCODE OPERATOR(public.||) '" в число.'::character
+                                    varying));
+                                end;
+                            end;
+                          elsif ((par.DATA_TYPE OPERATOR(public.=) 2::numeric) and (par.VALUE_CONTEXT OPERATOR(public.<>) 1::numeric)) then
+                            begin
+                              if ((public.length(sVALUE) OPERATOR(public.>) 10::numeric)) then
+                                declare
+                                  temp$2$0 PARUS.UDO_PKG_CONV$par_type;
+                                  temp$2$1 PARUS.UDO_PKG_CONV$unit_type;
+                                begin
+                                  if not UDO_PKG_CONV$ppc$vars.ppc$loaded then
+                                    UDO_PKG_CONV$ppc$vars := PARUS.UDO_PKG_CONV$ppc$load();
+                                  end if;
+                                  temp$2$1 := PARUS.UDO_PKG_CONV$unit_table$get((UDO_PKG_CONV$ppc$vars).tbUNIT, false::boolean, sUNIT);
+                                  temp$2$0 := PARUS.UDO_PKG_CONV$par_table$get(temp$2$1.PARAMS, false::boolean, par.NUMB);
+                                  UDO_PKG_CONV$ppc$vars$tmp.sSQLTEXT := (temp$2$0.sNAME OPERATOR(public.||)
+                                    ' := to_date('''::character varying OPERATOR(public.||) sVALUE OPERATOR(public.||) ''',''DD.MM.YYYY
+                                    hh24:mi:ss'')'::character varying);
+                                  if not UDO_PKG_CONV$ppc$vars.ppc$loaded then
+                                    UDO_PKG_CONV$ppc$vars := PARUS.UDO_PKG_CONV$ppc$load();
+                                  end if;
+                                  UDO_PKG_CONV$ppc$vars.sSQLTEXT := (UDO_PKG_CONV$ppc$vars$tmp).sSQLTEXT;
+                                  UDO_PKG_CONV$ppc$vars.ppc$saved := false;
+                                end;
+                              else
+                                declare
+                                  temp$2$0 PARUS.UDO_PKG_CONV$par_type;
+                                  temp$2$1 PARUS.UDO_PKG_CONV$unit_type;
+                                begin
+                                  if not UDO_PKG_CONV$ppc$vars.ppc$loaded then
+                                    UDO_PKG_CONV$ppc$vars := PARUS.UDO_PKG_CONV$ppc$load();
+                                  end if;
+                                  temp$2$1 := PARUS.UDO_PKG_CONV$unit_table$get((UDO_PKG_CONV$ppc$vars).tbUNIT, false::boolean, sUNIT);
+                                  temp$2$0 := PARUS.UDO_PKG_CONV$par_table$get(temp$2$1.PARAMS, false::boolean, par.NUMB);
+                                  UDO_PKG_CONV$ppc$vars$tmp.sSQLTEXT := (temp$2$0.sNAME OPERATOR(public.||)
+                                    ' := to_date('''::character varying OPERATOR(public.||) sVALUE OPERATOR(public.||) ''',''DD.MM.YYYY'')'::character varying);
+
+                                  if not UDO_PKG_CONV$ppc$vars.ppc$loaded then
+                                    UDO_PKG_CONV$ppc$vars := PARUS.UDO_PKG_CONV$ppc$load();
+                                  end if;
+                                  UDO_PKG_CONV$ppc$vars.sSQLTEXT := (UDO_PKG_CONV$ppc$vars$tmp).sSQLTEXT;
+                                  UDO_PKG_CONV$ppc$vars.ppc$saved := false;
+                                end;
+                              end if;
+                              declare
+                                temp$1$0 PARUS.UDO_PKG_CONV$par_type;
+                                temp$1$1 PARUS.UDO_PKG_CONV$unit_type;
+                              begin
+                                UDO_PKG_CONV$ppc$vars.ppc$loaded := false;
+                                if not UDO_PKG_CONV$ppc$vars.ppc$saved then
+                                  perform PARUS.UDO_PKG_CONV$ppc$save(UDO_PKG_CONV$ppc$vars);
+                                  UDO_PKG_CONV$ppc$vars.ppc$saved := true;
+                                end if;
+                                if not UDO_PKG_CONV$ppc$vars.ppc$loaded then
+                                  UDO_PKG_CONV$ppc$vars := PARUS.UDO_PKG_CONV$ppc$load();
+                                end if;
+                                temp$1$1 := PARUS.UDO_PKG_CONV$unit_table$get((UDO_PKG_CONV$ppc$vars).tbUNIT, true::boolean, sUNIT);
+                                temp$1$0 := PARUS.UDO_PKG_CONV$par_table$get(temp$1$1.PARAMS, true::boolean, par.NUMB);
+                                temp$1$0.dVALUE := PARUS.UDO_PKG_CONV$FR_TO_DATE(sVALUE);
+                                select
+                                  PARUS.UDO_PKG_CONV$par_table$put(temp$1$1.PARAMS, par.NUMB, temp$1$0)
+                                into
+                                  temp$1$1.PARAMS;
+                                select
+                                  PARUS.UDO_PKG_CONV$unit_table$put((UDO_PKG_CONV$ppc$vars).tbUNIT, sUNIT, temp$1$1)
+                                into
+                                  UDO_PKG_CONV$ppc$vars$tmp.tbUNIT;
+                                if not UDO_PKG_CONV$ppc$vars.ppc$loaded then
+                                  UDO_PKG_CONV$ppc$vars := PARUS.UDO_PKG_CONV$ppc$load();
+                                end if;
+                                UDO_PKG_CONV$ppc$vars.tbUNIT := (UDO_PKG_CONV$ppc$vars$tmp).tbUNIT;
+                                UDO_PKG_CONV$ppc$vars.ppc$saved := false;
+                              end;
+                            exception
+                              when OTHERS then
+                                begin
+                                  UDO_PKG_CONV$ppc$vars.ppc$loaded := false;
+                                  if not UDO_PKG_CONV$ppc$vars.ppc$saved then
+                                    perform PARUS.UDO_PKG_CONV$ppc$save(UDO_PKG_CONV$ppc$vars);
+                                    UDO_PKG_CONV$ppc$vars.ppc$saved := true;
+                                  end if;
+                                  perform PARUS.P_EXCEPTION(0::numeric, ('Ошибка преобразования значения "'::character varying OPERATOR(public.||) sVALUE
+                                    OPERATOR(public.||) '" параметра "'::character varying OPERATOR(public.||) par.PARAM_CODE OPERATOR(public.||)
+                                    '" в разделе "'::character varying OPERATOR(public.||) unit.UNITCODE OPERATOR(public.||) '" в дату.'::character varying));
+                                end;
+                            end;
+                          end if;
+                          if ((par.KEY_UNIQUE OPERATOR(public.>) 0::numeric)) then
+                            bUK_CHANGE := true::boolean;
+                          end if;
+                        end if;
+                      end;
+                      if ((par.KEY_UNIQUE OPERATOR(public.>) 0::numeric) and sVALUE is not null) then
+                        bUK_ALL_NULL := false::boolean;
+                      end if;
+                    end loop;
+                  end;
+                  if ((unit.ONLY_FOUND OPERATOR(public.=) 3::numeric)) then
+                    if (bFILTER_AFTER) then
+                      begin
+                        UDO_PKG_CONV$ppc$vars.ppc$loaded := false;
+                        if not UDO_PKG_CONV$ppc$vars.ppc$saved then
+                          perform PARUS.UDO_PKG_CONV$ppc$save(UDO_PKG_CONV$ppc$vars);
+                          UDO_PKG_CONV$ppc$vars.ppc$saved := true;
+                        end if;
+                        bFILTER := PARUS.UDO_PKG_CONV$FILTER_CHECK(sUNIT, unit.PROC_NAME, unit.FILTER);
+                      end;
+                    end if;
+                    if (bFILTER) then
+                      declare
+                        temp$0$0 boolean;
+                      begin
+                        UDO_PKG_CONV$ppc$vars.ppc$loaded := false;
+                        if not UDO_PKG_CONV$ppc$vars.ppc$saved then
+                          perform PARUS.UDO_PKG_CONV$ppc$save(UDO_PKG_CONV$ppc$vars);
+                          UDO_PKG_CONV$ppc$vars.ppc$saved := true;
+                        end if;
+                        temp$0$0 := PARUS.UDO_PKG_CONV$PROC_EXEC(sUNIT);
+                        if temp$0$0 then
+                          null;
+                        end if;
+                      end;
+                    end if;
+                  elsif (bUK_EXIST and bUK_ALL_NULL) then
+                    begin
+                      UDO_PKG_CONV$ppc$vars.ppc$loaded := false;
+                      if not UDO_PKG_CONV$ppc$vars.ppc$saved then
+                        perform PARUS.UDO_PKG_CONV$ppc$save(UDO_PKG_CONV$ppc$vars);
+                        UDO_PKG_CONV$ppc$vars.ppc$saved := true;
+                      end if;
+                      perform PARUS.UDO_PKG_CONV$PARAMS_VALUE_CLEAR(sUNIT);
+                    end;
+                  elsif (bUK_EXIST and not bUK_CHANGE) then
+                    null;
+                  elsif (bUK_EXIST and bUK_CHANGE) then
+                    declare
+                      temp$0$0 boolean;
+                    begin
+                      UDO_PKG_CONV$ppc$vars.ppc$loaded := false;
+                      if not UDO_PKG_CONV$ppc$vars.ppc$saved then
+                        perform PARUS.UDO_PKG_CONV$ppc$save(UDO_PKG_CONV$ppc$vars);
+                        UDO_PKG_CONV$ppc$vars.ppc$saved := true;
+                      end if;
+                      temp$0$0 := not PARUS.UDO_PKG_CONV$FIND_RECORD(sUNIT);
+                      if temp$0$0 then
+                        if (bFILTER_AFTER) then
+                          begin
+                            UDO_PKG_CONV$ppc$vars.ppc$loaded := false;
+                            if not UDO_PKG_CONV$ppc$vars.ppc$saved then
+                              perform PARUS.UDO_PKG_CONV$ppc$save(UDO_PKG_CONV$ppc$vars);
+                              UDO_PKG_CONV$ppc$vars.ppc$saved := true;
+                            end if;
+                            bFILTER := PARUS.UDO_PKG_CONV$FILTER_CHECK(sUNIT, unit.PROC_NAME, unit.FILTER);
+                          end;
+                        end if;
+                        if (bFILTER) then
+                          if ((unit.ERR_NOTFOUND OPERATOR(public.=) 1::numeric)) then
+                            begin
+                              UDO_PKG_CONV$ppc$vars.ppc$loaded := false;
+                              if not UDO_PKG_CONV$ppc$vars.ppc$saved then
+                                perform PARUS.UDO_PKG_CONV$ppc$save(UDO_PKG_CONV$ppc$vars);
+                                UDO_PKG_CONV$ppc$vars.ppc$saved := true;
+                              end if;
+                              perform PARUS.P_EXCEPTION(0::numeric, ('Ошибка в разделе "'::character varying OPERATOR(public.||) unit.UNITCODE
+                                OPERATOR(public.||) '". Запись по уникальному ключу не найдена.'::character varying));
+                            end;
+                          end if;
+                          if ((unit.ONLY_FOUND OPERATOR(public.=) 0::numeric) and (nUNIT_NUMB_START OPERATOR(public.<=) unit.NUMB)) then
+                            declare
+                              temp$0$0 boolean;
+                            begin
+                              UDO_PKG_CONV$ppc$vars.ppc$loaded := false;
+                              if not UDO_PKG_CONV$ppc$vars.ppc$saved then
+                                perform PARUS.UDO_PKG_CONV$ppc$save(UDO_PKG_CONV$ppc$vars);
+                                UDO_PKG_CONV$ppc$vars.ppc$saved := true;
+                              end if;
+                              temp$0$0 := not PARUS.UDO_PKG_CONV$PROC_EXEC(sUNIT);
+                              if temp$0$0 then
+                                begin
+                                  UDO_PKG_CONV$ppc$vars.ppc$loaded := false;
+                                  if not UDO_PKG_CONV$ppc$vars.ppc$saved then
+                                    perform PARUS.UDO_PKG_CONV$ppc$save(UDO_PKG_CONV$ppc$vars);
+                                    UDO_PKG_CONV$ppc$vars.ppc$saved := true;
+                                  end if;
+                                  perform PARUS.P_EXCEPTION(0::numeric, ('Ошибка при вставке записи в раздел с кодом "'::character varying OPERATOR(public.||)
+                                    unit.UNITCODE OPERATOR(public.||) '".'::character varying));
+                                end;
+                              end if;
+                            end;
+                          end if;
+                        end if;
+                      else
+                        if ((unit.ONLY_FOUND OPERATOR(public.=) 2::numeric) and (nUNIT_NUMB_START OPERATOR(public.<=) unit.NUMB)) then
+                          if (bFILTER_AFTER) then
+                            begin
+                              UDO_PKG_CONV$ppc$vars.ppc$loaded := false;
+                              if not UDO_PKG_CONV$ppc$vars.ppc$saved then
+                                perform PARUS.UDO_PKG_CONV$ppc$save(UDO_PKG_CONV$ppc$vars);
+                                UDO_PKG_CONV$ppc$vars.ppc$saved := true;
+                              end if;
+                              bFILTER := PARUS.UDO_PKG_CONV$FILTER_CHECK(sUNIT, unit.PROC_NAME, unit.FILTER);
+                            end;
+                          end if;
+                          if (bFILTER) then
+                            declare
+                              temp$0$0 boolean;
+                            begin
+                              UDO_PKG_CONV$ppc$vars.ppc$loaded := false;
+                              if not UDO_PKG_CONV$ppc$vars.ppc$saved then
+                                perform PARUS.UDO_PKG_CONV$ppc$save(UDO_PKG_CONV$ppc$vars);
+                                UDO_PKG_CONV$ppc$vars.ppc$saved := true;
+                              end if;
+                              temp$0$0 := not PARUS.UDO_PKG_CONV$PROC_EXEC(sUNIT);
+                              if temp$0$0 then
+                                begin
+                                  UDO_PKG_CONV$ppc$vars.ppc$loaded := false;
+                                  if not UDO_PKG_CONV$ppc$vars.ppc$saved then
+                                    perform PARUS.UDO_PKG_CONV$ppc$save(UDO_PKG_CONV$ppc$vars);
+                                    UDO_PKG_CONV$ppc$vars.ppc$saved := true;
+                                  end if;
+                                  perform PARUS.P_EXCEPTION(0::numeric, ('Ошибка при изменении записи в разделе с кодом "'::character varying
+                                    OPERATOR(public.||) unit.UNITCODE OPERATOR(public.||) '".'::character varying));
+                                end;
+                              end if;
+                            end;
+                          end if;
+                        end if;
+                      end if;
+                    end;
+                  else
+                    if ((unit.ONLY_FOUND OPERATOR(public.=) 0::numeric) and (nUNIT_NUMB_START OPERATOR(public.<=) unit.NUMB)) then
+                      if (bFILTER_AFTER) then
+                        begin
+                          UDO_PKG_CONV$ppc$vars.ppc$loaded := false;
+                          if not UDO_PKG_CONV$ppc$vars.ppc$saved then
+                            perform PARUS.UDO_PKG_CONV$ppc$save(UDO_PKG_CONV$ppc$vars);
+                            UDO_PKG_CONV$ppc$vars.ppc$saved := true;
+                          end if;
+                          bFILTER := PARUS.UDO_PKG_CONV$FILTER_CHECK(sUNIT, unit.PROC_NAME, unit.FILTER);
+                        end;
+                      end if;
+                      if (bFILTER) then
+                        declare
+                          temp$0$0 boolean;
+                        begin
+                          UDO_PKG_CONV$ppc$vars.ppc$loaded := false;
+                          if not UDO_PKG_CONV$ppc$vars.ppc$saved then
+                            perform PARUS.UDO_PKG_CONV$ppc$save(UDO_PKG_CONV$ppc$vars);
+                            UDO_PKG_CONV$ppc$vars.ppc$saved := true;
+                          end if;
+                          temp$0$0 := not PARUS.UDO_PKG_CONV$PROC_EXEC(sUNIT);
+                          if temp$0$0 then
+                            begin
+                              UDO_PKG_CONV$ppc$vars.ppc$loaded := false;
+                              if not UDO_PKG_CONV$ppc$vars.ppc$saved then
+                                perform PARUS.UDO_PKG_CONV$ppc$save(UDO_PKG_CONV$ppc$vars);
+                                UDO_PKG_CONV$ppc$vars.ppc$saved := true;
+                              end if;
+                              perform PARUS.P_EXCEPTION(0::numeric, ('Ошибка при вставке записи в раздел с кодом "'::character varying OPERATOR(public.||)
+                                unit.UNITCODE OPERATOR(public.||) '".'::character varying));
+                            end;
+                          end if;
+                        end;
+                      end if;
+                    end if;
+                  end if;
+                end if;
+              end loop;
+            end;
+          exception
+            when OTHERS then
+              UDO_PKG_CONV$ppc$vars.ppc$loaded := false;
+                if not UDO_PKG_CONV$ppc$vars.ppc$saved then
+                  perform PARUS.UDO_PKG_CONV$ppc$save(UDO_PKG_CONV$ppc$vars);
+                  UDO_PKG_CONV$ppc$vars.ppc$saved := true;
+                end if;
+                sERRMSG := PARUS.ERROR_TEXT();
+                if not UDO_PKG_CONV$ppc$vars.ppc$loaded then
+                  UDO_PKG_CONV$ppc$vars := PARUS.UDO_PKG_CONV$ppc$load();
+                end if;
+                update PARUS.UDO_T_CONV_BLTABLES_BUFF b set
+                  STATUS = 3::numeric,
+                  UNIT_NUMB = sUNIT_NUMB,
+                  SQL_TEXT = (UDO_PKG_CONV$ppc$vars).sSQLTEXT,
+                  ERRMSG = sERRMSG
+                where
+                  (b.RN OPERATOR(public.=) buff.RN);
+                declare
+                  temp$0$0 boolean;
+                begin
+                  if not UDO_PKG_CONV$ppc$vars.ppc$loaded then
+                    UDO_PKG_CONV$ppc$vars := PARUS.UDO_PKG_CONV$ppc$load();
+                  end if;
+                  temp$0$0 := (UDO_PKG_CONV$ppc$vars).bTRACE_FLAG;
+                  if temp$0$0 then
+                    declare
+                      temp$0$0 boolean;
+                    begin
+                      UDO_PKG_CONV$ppc$vars.ppc$loaded := false;
+                      if not UDO_PKG_CONV$ppc$vars.ppc$saved then
+                        perform PARUS.UDO_PKG_CONV$ppc$save(UDO_PKG_CONV$ppc$vars);
+                        UDO_PKG_CONV$ppc$vars.ppc$saved := true;
+                      end if;
+                      temp$0$0 := ((PARUS.PKG_SESSION$GET_CONNECT_TYPE() OPERATOR(public.=) 0::numeric::numeric));
+                      if temp$0$0 then
+                        null;
+                      end if;
+                    end;
+                  end if;
+                end;
+                raise;
+          end;
+          declare
+            temp$4$0 PARUS.UDO_PKG_CONV$par_type;
+            temp$4$1 PARUS.UDO_PKG_CONV$unit_type;
+          begin
+            if not UDO_PKG_CONV$ppc$vars.ppc$loaded then
+              UDO_PKG_CONV$ppc$vars := PARUS.UDO_PKG_CONV$ppc$load();
+            end if;
+            temp$4$1 := PARUS.UDO_PKG_CONV$unit_table$get((UDO_PKG_CONV$ppc$vars).tbUNIT, false::boolean, sTABLE);
+            temp$4$0 := PARUS.UDO_PKG_CONV$par_table$get(temp$4$1.PARAMS, false::boolean, 2::numeric);
+            UDO_PKG_CONV$ppc$vars.ppc$loaded := false;
+            if not UDO_PKG_CONV$ppc$vars.ppc$saved then
+              perform PARUS.UDO_PKG_CONV$ppc$save(UDO_PKG_CONV$ppc$vars);
+              UDO_PKG_CONV$ppc$vars.ppc$saved := true;
+            end if;
+            perform PARUS.UDO_PKG_CONV$LOAD_BUFFER(nBLTABLES, buff.RN, temp$4$0.nVALUE);
+          end;
+          UDO_PKG_CONV$ppc$vars$tmp.nBUFF_RN := buff.RN;
+          if not UDO_PKG_CONV$ppc$vars.ppc$loaded then
+            UDO_PKG_CONV$ppc$vars := PARUS.UDO_PKG_CONV$ppc$load();
+          end if;
+          UDO_PKG_CONV$ppc$vars.nBUFF_RN := (UDO_PKG_CONV$ppc$vars$tmp).nBUFF_RN;
+          UDO_PKG_CONV$ppc$vars.ppc$saved := false;
+          UDO_PKG_CONV$ppc$vars.ppc$loaded := false;
+          if not UDO_PKG_CONV$ppc$vars.ppc$saved then
+            perform PARUS.UDO_PKG_CONV$ppc$save(UDO_PKG_CONV$ppc$vars);
+            UDO_PKG_CONV$ppc$vars.ppc$saved := true;
+          end if;
+          temp$0$0 := PARUS.UDO_PKG_CONV$FIND_RECORD(sTABLE, 1::numeric::numeric, false::boolean);
+        end loop;
+      end;
+      update PARUS.UDO_T_CONV_BLTABLES_BUFF b set
+        STATUS = 2::numeric,
+        UNIT_NUMB = 0::numeric,
+        SQL_TEXT = null,
+        ERRMSG = null
+      where
+        (b.RN OPERATOR(public.=) buff.RN);
+      declare
+        temp$0$0 boolean;
+      begin
+        if not UDO_PKG_CONV$ppc$vars.ppc$loaded then
+          UDO_PKG_CONV$ppc$vars := PARUS.UDO_PKG_CONV$ppc$load();
+        end if;
+        temp$0$0 := (UDO_PKG_CONV$ppc$vars).bTRACE_FLAG;
+        if temp$0$0 then
+          declare
+            temp$0$0 boolean;
+          begin
+            UDO_PKG_CONV$ppc$vars.ppc$loaded := false;
+            if not UDO_PKG_CONV$ppc$vars.ppc$saved then
+              perform PARUS.UDO_PKG_CONV$ppc$save(UDO_PKG_CONV$ppc$vars);
+              UDO_PKG_CONV$ppc$vars.ppc$saved := true;
+            end if;
+            temp$0$0 := ((PARUS.PKG_SESSION$GET_CONNECT_TYPE() OPERATOR(public.=) 0::numeric::numeric));
+            if temp$0$0 then
+              null;
+            end if;
+          end;
+        end if;
+      end;
+    end loop;
+  end;
+  if not UDO_PKG_CONV$ppc$vars.ppc$saved then
+    perform PARUS.UDO_PKG_CONV$ppc$save(UDO_PKG_CONV$ppc$vars);
+  end if;
+end;

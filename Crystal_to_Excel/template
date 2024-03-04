@@ -1,0 +1,508 @@
+create or replace procedure P_TRANSINVCUST_ACTUNIVER_XLS
+(
+  nIDENT        in number,    --NRN
+  bBDATE        in number,    --Акт с датой?
+  sSIGNATURE    in varchar2,  --Подпись
+  bWORKPERIOD   in number,    --Показывать период выполнения работ?
+  bBVIEWPAYSUM  in number,    --Показывать сумму к оплате?
+  bBPRINTSIGN   in number    --Печать с подписью и штампом?
+)
+as
+LIST                    constant PKG_STD.tSTRING := 'Лист1';
+
+CELL_ADR_POST           constant PKG_STD.tSTRING := 'AdresPOST';
+CELL_ADR_ZAK            constant PKG_STD.tSTRING := 'AdresZAK';
+CELL_AGNNAME            constant PKG_STD.tSTRING := 'AGNNAME';
+CELL_AKTDATA            constant PKG_STD.tSTRING := 'AKT_DATA';
+CELL_DACDATE            constant PKG_STD.tSTRING := 'DACDATE';
+CELL_DDOCDATE           constant PKG_STD.tSTRING := 'DDOCDATE';
+CELL_DIRECTOR           constant PKG_STD.tSTRING := 'DIRECTOR';
+CELL_GRGR               constant PKG_STD.tSTRING := 'grgr';
+
+IMAGE_SEAL         constant PKG_STD.tSTRING := 'Рисунок 1';
+
+CELL_HEAD               constant PKG_STD.tSTRING := 'head';
+CELL_INN_KPP_POST        constant PKG_STD.tSTRING := 'INN_KPP_POST';
+CELL_INN_KPP_ZAK         constant PKG_STD.tSTRING := 'INN_KPP_ZAK';
+LINE_HEAD_SPEC          constant PKG_STD.tSTRING := 'LINE_HEAD_SPEC';
+LINE_SPEC               constant PKG_STD.tSTRING := 'LINE_SPEC';
+LINE_NIZHB              constant PKG_STD.tSTRING := 'LOWER_b';
+CELL_MNGFIO             constant PKG_STD.tSTRING := 'MngFIO';
+CELL_NDS_STR            constant PKG_STD.tSTRING := 'nds_str';
+CELL_NPAYSUM            constant PKG_STD.tSTRING := 'nPaySumm';
+CELL_NQUANT             constant PKG_STD.tSTRING := 'NQUANT';
+CELL_OR                 constant PKG_STD.tSTRING := 'OR';
+CELL_SACCNUMB           constant PKG_STD.tSTRING := 'SACCNUMB';
+CELL_SCONTRNUMB           constant PKG_STD.tSTRING := 'SCONTR_NUMB';
+
+CELL_SMANAG             constant PKG_STD.tSTRING := 'SMANAG';
+CELL_SMEAS_MAIN         constant PKG_STD.tSTRING := 'SMEAS_MAIN';
+
+CELL_SNOMMODIFNAME      constant PKG_STD.tSTRING := 'SNOMMODIFNAME';
+CELL_SOTV_FACE          constant PKG_STD.tSTRING := 'sotv_face';
+CELL_LOWERDATE          constant PKG_STD.tSTRING := 'lowerdate';
+--CELL_SUMMA_NCP          constant PKG_STD.tSTRING := 'summa_ncp';
+
+CELL_SUM_SPEC           constant PKG_STD.tSTRING := 'sum_spec';
+CELL_SUM_NCP            constant PKG_STD.tSTRING := 'summa_ncp';
+CELL_SUM_NDS            constant PKG_STD.tSTRING := 'summa_nds';
+CELL_SUMMAALL_TO_STR    constant PKG_STD.tSTRING := 'summaall_to_str';
+CELL_ZAPNUM            constant PKG_STD.tSTRING := 'ZapNum';
+
+CELL_GRUZ            constant PKG_STD.tSTRING := 'gruz';
+
+MACROS_NIZH_COL_UDAL          constant PKG_STD.tSTRING := 'нижКолУдал';
+MACROS_NIZH_COL_DOBAV          constant PKG_STD.tSTRING := 'нижКолДобав';
+
+
+LINE_A                  constant PKG_STD.tSTRING := 'Подробности_a';
+LINE_B                  constant PKG_STD.tSTRING := 'Подробности_b';
+LINE_C                  constant PKG_STD.tSTRING := 'Подробности_c';
+LINE_D                  constant PKG_STD.tSTRING := 'Подробности_d';
+LINE_E                  constant PKG_STD.tSTRING := 'Подробности_e';
+LINE_F                  constant PKG_STD.tSTRING := 'Подробности_f';
+LINE_G                  constant PKG_STD.tSTRING := 'Подробности_g';
+LINE_H                  constant PKG_STD.tSTRING := 'Подробности_h';
+LINE_I                  constant PKG_STD.tSTRING := 'Подробности_i';
+LINE_J                  constant PKG_STD.tSTRING := 'Подробности_j';
+LINE_L                  constant PKG_STD.tSTRING := 'Подробности_l';
+LINE_M                  constant PKG_STD.tSTRING := 'Подробности_m';
+LINE_N                  constant PKG_STD.tSTRING := 'Подробности_n';
+LINE_O                  constant PKG_STD.tSTRING := 'Подробности_o';
+LINE_P                  constant PKG_STD.tSTRING := 'Подробности_p';
+LINE_Q                  constant PKG_STD.tSTRING := 'Подробности_q';
+LINE_R                  constant PKG_STD.tSTRING := 'Подробности_r';
+LINE_S                  constant PKG_STD.tSTRING := 'Подробности_s';
+
+
+
+--LINE_LOW_COL                  constant PKG_STD.tSTRING := 'НижнийКолонтитулСтраницы_b';
+
+  dDOCDATE        date;
+  nSERV_SUMM_NDS   NUMBER(17,2);
+  sAGNNAME       PKG_STD.tSTRING;
+ sAdresPOST   PKG_STD.tSTRING;
+  sAdresZAK   PKG_STD.tSTRING;
+  sAkt_Data    PKG_STD.tSTRING;
+  sGRGR         PKG_STD.tSTRING;
+  sHEAD         PKG_STD.tSTRING;
+  sMNGFIO       PKG_STD.tSTRING;
+  sORR          PKG_STD.tSTRING;
+  sSACCNUMB     PKG_STD.tSTRING;
+
+  D_OK                     PKG_STD.tSTRING;
+  DS                       PKG_STD.tSTRING;
+  D_NA                     PKG_STD.tSTRING;
+
+  /*str1                     PKG_STD.tSTRING;
+  str2                     PKG_STD.tSTRING;
+  str3                     PKG_STD.tSTRING;*/
+
+  sTYPE_INCOM              PKG_STD.tSTRING;
+  nSUM_SPEC                number(17,2);
+  sSYS_NALOG               PKG_STD.tSTRING;
+  sSELLER_CODE             PKG_STD.tSTRING;
+  sJUR                     PKG_STD.tSTRING;
+  sDirector                     PKG_STD.tSTRING;
+  sMNSIGN                  PKG_STD.tSTRING;
+  sPAYSUM                  PKG_STD.tSTRING;
+  sAGENT_NAME              PKG_STD.tSTRING;
+  sAGNFIFO_NAME            PKG_STD.tSTRING;
+  sNDS_STR                 PKG_STD.tSTRING;
+  sSUMMAALL_TO_STR         PKG_STD.tSTRING;
+
+
+  iINDEX                   integer;
+  nPP                      integer;
+  sNOMMODIFNAME            PKG_STD.tSTRING;
+  nQUANT                   PKG_STD.tLNUMBER;
+  sMEAS_NAME               PKG_STD.tSTRING;
+
+  str11                    PKG_STD.tSTRING;
+  str22                    PKG_STD.tSTRING;
+  spref                    PKG_STD.tSTRING;
+
+  sINN_KPP_POST  PKG_STD.tSTRING;
+  sINN_KPP_ZAK  PKG_STD.tSTRING;
+
+  sSCONTR_NUMB  PKG_STD.tSTRING;
+  sSMANAG      PKG_STD.tSTRING;
+  sSotv_face    PKG_STD.tSTRING;
+  nSumma_nds    PKG_STD.tNUMBER;
+  nSumma_ncp    PKG_STD.tNUMBER;
+
+  dDACDATE date;
+  sDACDATE PKG_STD.tSTRING;
+  sDOCDATE PKG_STD.tSTRING;
+
+begin
+  PRSG_EXCEL.PREPARE;
+  PRSG_EXCEL.SHEET_SELECT( LIST );
+  PRSG_EXCEL.CELL_DESCRIBE(CELL_GRUZ);
+
+  PRSG_EXCEL.CELL_DESCRIBE(CELL_AGNNAME);
+  PRSG_EXCEL.CELL_DESCRIBE(CELL_INN_KPP_POST);
+  PRSG_EXCEL.CELL_DESCRIBE(CELL_ADR_POST);
+
+  PRSG_EXCEL.CELL_DESCRIBE(CELL_GRGR);
+  PRSG_EXCEL.CELL_DESCRIBE(CELL_INN_KPP_ZAK);
+  PRSG_EXCEL.CELL_DESCRIBE(CELL_ADR_ZAK);
+
+  PRSG_EXCEL.CELL_DESCRIBE(CELL_HEAD);
+  PRSG_EXCEL.CELL_DESCRIBE(CELL_AKTDATA);
+
+  PRSG_EXCEL.CELL_DESCRIBE(CELL_SCONTRNUMB);
+
+  PRSG_EXCEL.CELL_DESCRIBE(CELL_SACCNUMB);
+  PRSG_EXCEL.CELL_DESCRIBE(CELL_DACDATE);
+
+  PRSG_EXCEL.CELL_DESCRIBE(CELL_OR);
+
+  PRSG_EXCEL.CELL_DESCRIBE(CELL_DDOCDATE);
+
+  PRSG_EXCEL.LINE_DESCRIBE(LINE_HEAD_SPEC);
+  PRSG_EXCEL.LINE_DESCRIBE(LINE_SPEC);
+  PRSG_EXCEL.LINE_CELL_DESCRIBE(LINE_SPEC, CELL_ZAPNUM);
+  PRSG_EXCEL.LINE_CELL_DESCRIBE(LINE_SPEC, CELL_SNOMMODIFNAME);
+  PRSG_EXCEL.LINE_CELL_DESCRIBE(LINE_SPEC, CELL_NQUANT);
+  PRSG_EXCEL.LINE_CELL_DESCRIBE(LINE_SPEC, CELL_SMEAS_MAIN);
+  PRSG_EXCEL.LINE_CELL_DESCRIBE(LINE_SPEC, CELL_SUM_SPEC);
+  PRSG_EXCEL.LINE_DESCRIBE(LINE_NIZHB);
+
+  PRSG_EXCEL.CELL_DESCRIBE(CELL_NDS_STR);
+
+  PRSG_EXCEL.CELL_DESCRIBE(CELL_SUMMAALL_TO_STR);
+
+  PRSG_EXCEL.CELL_DESCRIBE(CELL_SUM_NDS);
+
+  PRSG_EXCEL.CELL_DESCRIBE(CELL_SUM_NCP);
+
+  PRSG_EXCEL.CELL_DESCRIBE(CELL_NPAYSUM);
+
+  PRSG_EXCEL.CELL_DESCRIBE(CELL_DIRECTOR);
+
+  PRSG_EXCEL.CELL_DESCRIBE(CELL_SMANAG);
+
+  PRSG_EXCEL.CELL_DESCRIBE(CELL_MNGFIO);
+
+  PRSG_EXCEL.CELL_DESCRIBE(CELL_SOTV_FACE);
+
+  PRSG_EXCEL.LINE_DESCRIBE(LINE_A);
+  PRSG_EXCEL.LINE_DESCRIBE(LINE_B);
+  PRSG_EXCEL.LINE_DESCRIBE(LINE_C);
+  PRSG_EXCEL.LINE_DESCRIBE(LINE_D);
+  PRSG_EXCEL.LINE_DESCRIBE(LINE_E);
+  PRSG_EXCEL.LINE_DESCRIBE(LINE_F);
+  PRSG_EXCEL.LINE_DESCRIBE(LINE_G);
+  PRSG_EXCEL.LINE_DESCRIBE(LINE_H);
+  PRSG_EXCEL.LINE_DESCRIBE(LINE_I);
+  PRSG_EXCEL.LINE_DESCRIBE(LINE_L);
+  PRSG_EXCEL.LINE_DESCRIBE(LINE_J);
+  PRSG_EXCEL.LINE_DESCRIBE(LINE_M);
+  PRSG_EXCEL.LINE_DESCRIBE(LINE_N);
+  PRSG_EXCEL.LINE_DESCRIBE(LINE_O);
+  PRSG_EXCEL.LINE_DESCRIBE(LINE_P);
+  PRSG_EXCEL.LINE_DESCRIBE(LINE_Q);
+  PRSG_EXCEL.LINE_DESCRIBE(LINE_R);
+  PRSG_EXCEL.LINE_DESCRIBE(LINE_S);
+
+  --PRSG_EXCEL.
+
+  --PRSG_EXCEL.CELL_DESCRIBE(CELL_LOWERDATE);
+  --PRSG_EXCEL.LINE_DESCRIBE(LINE_LOW_COL);
+
+
+
+
+  for rREC in
+  (
+    select T.*,
+    JUR.RN              nJRN,
+    AGN.RN              AGNRN,
+    AGN.AGNABBR         sAGN_ABBR,
+    AGN.AGNIDNUMB       sAGN_IDNUMB,
+    AGN.reason_code     sAGN_Reason_code,
+    AGN.Agn_Comment     sAGN_Comment,
+    AGN.PHONE           sAGN_PHONE,
+    AGN1.AGNNAME        sAGN1_NAME,
+    AGN1.Agn_Comment    sAGN1_Comment,
+    AGN1.PHONE          sAGN1_PHONE,
+    AGN1.AGNIDNUMB      sAGN1_IDNUMB,
+    AGN1.reason_code    sReason1_code,
+    FIF.NAME            sFIFNAME,
+    DT1.DOCCODE         sDT1DOCCODE
+  from
+  TRANSINVCUST T,
+  SELECTLIST S,
+  AGNLIST AGN,
+  AGNLIST AGN1,
+  AGNFIFO FIF,
+  DOCTYPES DT1,
+  JURPERSONS JUR
+  where
+  S.IDENT = nIDENT
+    and S.DOCUMENT = T.RN
+    and JUR.AGENT = AGN.RN(+)
+    and T.AGNFIFO = FIF.RN(+)
+    and T.DOCTYPE = DT1.RN
+    and T.JUR_PERS = JUR.RN(+)
+    and JUR.AGENT = AGN.RN(+)
+    and T.AGENT = AGN1.RN
+    )
+  loop
+------------------------------------------инициализация переменных
+  sSELLER_CODE:=rREC.sAGN_ABBR;
+
+  spref := substr(rREC.sDT1DOCCODE,-3,3);
+
+  sSYS_NALOG  :=substr(fr_get_prop_iva(rREC.nJRN,'Система Налогообл', 'JuridicalPersons'),0,254);
+
+  sAGNNAME := substr(PKGR_DOC.FR_GET_AGENTNAME_BY_RN(rREC.AGNRN,0),0,254);
+
+  sINN_KPP_POST := trim(rREC.sAGN_IDNUMB) || '/' || trim(rREC.sAGN_Reason_code);
+
+  sAGNFIFO_NAME:=rREC.sFIFNAME;
+  sAGENT_NAME  :=rREC.sAGN1_NAME;
+  if sAGENT_NAME is null THEN
+  sGRGR := TRIM(BOTH ' ' FROM sAGNFIFO_NAME);
+  else
+  sGRGR := TRIM(BOTH ' ' FROM sAGENT_NAME);
+  end if;
+
+  sINN_KPP_ZAK := trim(rREC.sAGN1_IDNUMB) || '/' || trim(rREC.sReason1_code);
+
+  sAdresPOST := rREC.sAgn_Comment||', тел.: '||rREC.sAGN_PHONE;
+
+  sAdresZAK := rREC.sAgn1_Comment||', тел.: '||rREC.sAGN1_PHONE;
+
+  shead :=  LTRIM(rREC.NUMB);
+
+  if bBDATE = 1 THEN
+  sAKT_DATA   := 'от '|| TO_CHAR(rREC.DOCDATE, 'dd.MM.yyyy');
+  ELSE
+  sAKT_DATA   := '';
+  end if;
+
+  sSCONTR_NUMB := PKGR_DOC.FR_GET_CONTRACTNUMB_fb(null,rREC.RN);
+
+  /*str1 := SUBSTR( rREC.ACCNUMB, 0, Instr(rREC.ACCNUMB,'/')-1);
+  str2 := SUBSTR( rREC.ACCNUMB,LENGTH(str1)+2,Instr( rREC.ACCNUMB,'/')-1);
+  str3 := SUBSTR( rREC.ACCNUMB,LENGTH('100450')+3);
+  sSACCNUMB := str1||'/'||str2||'/'||str3;*/
+  sSACCNUMB := rREC.ACCNUMB;-----------------КАК ДЕЛИТЬ? 100/451/-2017-14 и  2009Р18
+
+  dDOCDATE:=rREC.DOCDATE;
+  dDACDATE:=rREC.ACCDATE;
+
+  sDOCDATE := TO_CHAR(dDOCDATE, 'dd.MM.yyyy');
+  sDACDATE := TO_CHAR(dDACDATE, 'dd.MM.yyyy');
+
+  D_OK:=sDOCDATE;
+  DS:=sDACDATE;
+
+  if substr(D_OK,4,2) = substr(DS,4,2) then
+     D_NA:=DS;
+  else
+     D_NA:='01'||substr(D_OK,3,8);
+  end if;
+  sTYPE_INCOM  :=substr(PKGR_DOC.FR_TYPE_INCOM(rREC.RN,'TRANSINVCUST'),0,3) ;
+
+  if sTYPE_INCOM = '002' then
+     sORR:='_______________';
+  elsif bWORKPERIOD = 1 then
+        sORR:=D_NA||' г.';
+  else
+                sORR:='' ;
+  end if;
+
+  sNDS_STR:='Стоимость услуг (работ) составляет: ';
+
+  nSERV_SUMM_NDS := rREC.SERV_SUMM_NDS;
+  P_MONEY_SUM_STR(rREC.COMPANY, nSERV_SUMM_NDS, '002', sPAYSUM);--nPaysum
+
+  --SUMAL--199 640,00  (Сто девяносто девять тысяч шестьсот сорок )  рублей 00 копеек
+  str11:= trim(replace(to_char(nSERV_SUMM_NDS, '999999999999.99'), '.', ','))||'  (';--to_char(nSERV_SUMM_NDS) ||'  (';
+  str22 :=  REPLACE(sPAYSUM, 'рублей', ' )  рублей');
+  sSUMMAALL_TO_STR:= str11 || str22;
+
+  nSumma_ncp:=0;
+  nSumma_nds:=0;
+
+  select
+  sum(ROUND(FR_CALC_TAX(P.COMPANY, rREC.DOCDATE, 1, P.SUMMWITHNDS, P.TAXGR, P.QUANT, 1, 'NDS'),2))
+  into nSumma_nds
+  from TRANSINVCUSTSPECS P
+  where P.PRN = rREC.RN
+  --and T.RN = 284707419
+  ;
+
+  select
+  sum( ROUND(FR_CALC_TAX(P.COMPANY, rREC.DOCDATE, 1, P.SUMMWITHNDS, P.TAXGR, P.QUANT, 1, 'NCP'),2))
+  into nSumma_ncp
+  from TRANSINVCUSTSPECS P
+  where P.PRN = rREC.RN
+  ;
+
+  sSMANAG:=F_IVA_TRINVCUST_DOC_MNG( rREC.COMPANY, rREC.AGENT, dDOCDATE, 1 );
+
+  sJur := SUBSTR( sSIGNATURE, 0, Instr(sSIGNATURE,'#')-1);--jur#dir#buh
+
+  sDirector := SUBSTR(sSIGNATURE,LENGTH(sJur)+2,Instr(sSIGNATURE,'#')-1);
+
+  sMNSIGN :=F_IVA_TRINVCUST_DOC_MNG( rREC.COMPANY, rREC.AGENT, dDOCDATE, 2 );
+  if sMNSIGN is null and LENGTH(sMNSIGN)>0 then
+  sMngFIO:= '( ' || sMNSIGN || ' )';
+  ELSE
+  sMngFIO:='(                                  )';
+  end if;
+ -- sSotv_face := SUBSTR(FR_IVA_GET_PROP(rREC.RN, '6 уровень', 'GoodsTransInvoicesToConsumers'), 1, 100) ;-- пусто!!!!
+  sSotv_face :='';
+  ---------------------------запись в ячейки
+
+PRSG_EXCEL.CELL_VALUE_WRITE( CELL_AGNNAME, sAGNNAME);
+
+PRSG_EXCEL.CELL_VALUE_WRITE( CELL_INN_KPP_POST, sINN_KPP_POST);
+
+PRSG_EXCEL.CELL_VALUE_WRITE( CELL_ADR_POST, sAdresPOST);
+
+ if spref <> 'РГЗ' then
+    PRSG_EXCEL.CELL_VALUE_WRITE( CELL_GRUZ, ' ' );
+  end if;
+
+ --PRSG_EXCEL.CELL_VALUE_WRITE( CELL_LOWERDATE, ' ' );
+
+PRSG_EXCEL.CELL_VALUE_WRITE( CELL_GRGR, sGRGR );
+
+PRSG_EXCEL.CELL_VALUE_WRITE( CELL_INN_KPP_ZAK, sINN_KPP_ZAK);
+
+PRSG_EXCEL.CELL_VALUE_WRITE( CELL_ADR_ZAK, sAdresZAK);
+
+ PRSG_EXCEL.CELL_VALUE_WRITE( CELL_HEAD, shead);
+
+ PRSG_EXCEL.CELL_VALUE_WRITE( CELL_SCONTRNUMB, sSCONTR_NUMB);
+
+  PRSG_EXCEL.CELL_VALUE_WRITE( CELL_AKTDATA, sAKT_DATA);
+
+
+  PRSG_EXCEL.CELL_VALUE_WRITE(CELL_SACCNUMB,sSACCNUMB);
+
+PRSG_EXCEL.CELL_VALUE_WRITE( CELL_OR, sORR);
+
+  PRSG_EXCEL.CELL_VALUE_WRITE(CELL_DDOCDATE , sDOCDATE ||' г.');
+
+  PRSG_EXCEL.CELL_VALUE_WRITE(CELL_NDS_STR ,sNDS_STR);
+
+  PRSG_EXCEL.CELL_VALUE_WRITE( CELL_SUMMAALL_TO_STR, sSUMMAALL_TO_STR);
+
+  PRSG_EXCEL.CELL_VALUE_WRITE( CELL_SUM_NDS, nSumma_nds);
+
+ PRSG_EXCEL.CELL_VALUE_WRITE( CELL_SUM_NCP, nSumma_ncp);
+
+   PRSG_EXCEL.CELL_VALUE_WRITE(CELL_NPAYSUM , sPAYSUM );
+
+    PRSG_EXCEL.CELL_VALUE_WRITE(CELL_DIRECTOR,'('||sDirector||')');
+
+    PRSG_EXCEL.CELL_VALUE_WRITE( CELL_SMANAG, sSMANAG);
+
+    PRSG_EXCEL.CELL_VALUE_WRITE(CELL_MNGFIO , sMngFIO);
+
+    PRSG_EXCEL.CELL_VALUE_WRITE( CELL_SOTV_FACE, sSotv_face);
+
+  -----------------------------------------уборка линий
+  PRSG_EXCEL.LINE_DELETE(LINE_F);
+
+  if bWORKPERIOD = 0 then
+    PRSG_EXCEL.LINE_DELETE(LINE_G);
+  end if;
+
+  if bWORKPERIOD = 0 then
+    PRSG_EXCEL.LINE_DELETE(LINE_H);
+  end if;
+
+  if sTYPE_INCOM <> '002' then
+    PRSG_EXCEL.LINE_DELETE(LINE_J);
+ end if;
+
+  if  sSYS_NALOG = 'Упрощенная' then
+    PRSG_EXCEL.LINE_DELETE(LINE_M);
+  end if;
+
+  if  sSYS_NALOG <> 'Упрощенная' then
+    PRSG_EXCEL.LINE_DELETE(LINE_N);
+  end if;
+
+  if  nSumma_ncp = 0  then
+   PRSG_EXCEL.LINE_DELETE(LINE_O);
+  end if;
+
+  if bBVIEWPAYSUM = 0 then
+    PRSG_EXCEL.LINE_DELETE(LINE_P);
+  end if;
+
+  if upper(sSELLER_CODE) = 'ЦЕНТР ИТ ПБ' or upper(sSELLER_CODE) = upper('ПарусНацРеф') then
+    PRSG_EXCEL.LINE_DELETE(LINE_Q);
+    -- PRSG_EXCEL.LINE_DELETE(LINE_LOW_COL);
+    PRSG_EXCEL.EXECUTE_MACROS(MACROS_NIZH_COL_UDAL);
+    else
+
+    PRSG_EXCEL.EXECUTE_MACROS(MACROS_NIZH_COL_DOBAV);
+  end if;
+
+  /*
+  MACROS_NIZH_COL_UDAL
+  MACROS_NIZH_COL_DOBAV
+  */
+
+  if  upper(sSELLER_CODE) = upper('ПарусНацРеф') then
+    PRSG_EXCEL.LINE_DELETE(LINE_R);
+  end if;
+
+  if bBPRINTSIGN = 0 then
+    PRSG_EXCEL.DELETE_OBJECT(IMAGE_SEAL);
+  end if;
+
+  if nSUM_SPEC = 0 or sTYPE_INCOM = '002'then
+    PRSG_EXCEL.LINE_DELETE(LINE_HEAD_SPEC);
+    PRSG_EXCEL.LINE_DELETE(LINE_SPEC);
+    else
+
+   nPP :=0;
+  for rREC_SPEC in
+    (
+      select P.*,
+             N1.RN N1RN,
+             MU4.MEAS_MNEMO  MEAS_MNEMO,
+             substr(FR_NIK_NEW_PRICE_MNEMO(P.COMPANY, N1.RN, rREC.Sheepview),1,480)  NOMMODIFNAME
+        from TRANSINVCUSTSPECS P,
+          NOMMODIF N1,
+          DICMUNTS MU4,
+          DICNOMNS D1
+        where P.PRN = rREC.RN
+          and P.NOMMODIF = N1.RN
+      and D1.UMEAS_MAIN = MU4.RN
+      and N1.PRN = D1.RN
+        order by NOMMODIFNAME
+    )
+    loop
+
+      --sNOMMODIFNAME := substr(FR_NIK_NEW_PRICE_MNEMO(rREC_SPEC.COMPANY, rREC_SPEC.N1RN, rREC.Sheepview),1,480);
+      nQUANT := fr_nik_new_price_quant(rREC_SPEC.COMPANY, 'GoodsTransInvoicesToConsumers', rREC_SPEC.PRN, rREC_SPEC.N1RN, rREC_SPEC.quant);
+      sMEAS_NAME := rREC_SPEC.MEAS_MNEMO ;
+      nSUM_SPEC := round(nQUANT * rREC_SPEC.PRICE,2);
+      nPP := nPP + 1;
+
+
+      iINDEX := PRSG_EXCEL.LINE_APPEND(LINE_SPEC);
+        PRSG_EXCEL.CELL_VALUE_WRITE( CELL_ZAPNUM, 0, iINDEX, nPP );
+        PRSG_EXCEL.CELL_VALUE_WRITE( CELL_SNOMMODIFNAME, 0, iINDEX, rREC_SPEC.NOMMODIFNAME );
+        PRSG_EXCEL.CELL_VALUE_WRITE( CELL_NQUANT, 0, iINDEX, nQUANT );
+        PRSG_EXCEL.CELL_VALUE_WRITE( CELL_SMEAS_MAIN, 0, iINDEX, sMEAS_NAME );
+        PRSG_EXCEL.CELL_VALUE_WRITE( CELL_SUM_SPEC, 0, iINDEX, trim(replace(to_char(nSUM_SPEC, '999999999999.99'), '.', ',')) );--
+
+  end loop;
+  PRSG_EXCEL.LINE_DELETE(LINE_SPEC);
+   PRSG_EXCEL.LINE_PAGE_BREAK(LINE_S);
+  end if;
+      end loop;
+
+end;

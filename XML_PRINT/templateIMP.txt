@@ -1,0 +1,29 @@
+    rLIST_ROWD := PKG_XPATH.LIST_NODES( rNODE_ROW,'_FULLBLOCKNAME_' );
+    /* цикл по узлам row */
+    for i in 1..PKG_XPATH.COUNT_NODES( rLIST_ROWD )
+    loop
+
+        rNODE_ROW               := PKG_XPATH.ITEM_NODE( rLIST_ROW,i );
+        rNODE_CODE              := PKG_XPATH.SINGLE_NODE(rNODE_ROW,'_BLOCKNAME_');
+        r_TABLENAME_._ATRNAME_  := PKG_XPATH.ATTRIBUTE( rNODE_ROW,'_VALNAME_' );
+
+        begin
+            select _ITERNAME_.RN
+            into r_TABLENAME_.RN
+            from _TABLENAME_ _ITERNAME_
+            where _ITERNAME_.PRN = _PARENTABLE_;
+
+            exception when NO_DATA_FOUND then r_TABLENAME_.RN := null;
+        end;
+
+        if r_TABLENAME_.RN is null then
+            P__TABLENAME__BASE_INSERT
+            (
+
+            );
+            P__TABLENAME__BASE_UPDATE
+            (
+
+            );
+        end if;
+    end loop;

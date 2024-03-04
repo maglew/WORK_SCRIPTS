@@ -1,0 +1,188 @@
+
+-------------------------------
+create or replace function UDO_F_LI_PROJECTSTAGES_INC_REG
+(
+ NCOMPANY         in number,        -- Организация
+ NRN            in number        -- Регистрационный номер
+) 
+return varchar2
+as
+ /* grant execute on UDO_F_LI_PROJECTSTAGES_INC_REG to public; */
+ SRESULT          PKG_STD.TSTRING;       -- Результат функции
+ 
+begin
+ /* 3.4 Функция для описателя атрибутов документов «Включено в реестр» (в раздел «Фактическая трудоемкость за период (этапы пз)») */
+ 
+ return SRESULT;
+
+end;
+-------------------------------
+create or replace function UDO_F_SLREGTRNPR_PAYABLE
+(
+ NCOMPANY         in number,        -- Организация
+ NRN            in number        -- Регистрационный номер
+) 
+return varchar2
+as
+ /* grant execute on UDO_F_SLREGTRNPR_PAYABLE to public; */
+ SRESULT          PKG_STD.TSTRING;       -- Результат функции
+ 
+begin
+ /* 3.5 Функция для описателя атрибутов документов «К выплате» (в раздел «Реестр перечислений (спецификация)») */
+ 
+ return SRESULT;
+
+end;
+-------------------------------
+create or replace function UDO_F_SLREGTRN_CONTRACT
+(
+ NCOMPANY         in number,        -- Организация
+ NRN            in number        -- Регистрационный номер
+) 
+return varchar2
+as
+ /* grant execute on UDO_F_SLREGTRN_CONTRACT to public; */
+ SRESULT          PKG_STD.TSTRING;       -- Результат функции
+ 
+begin
+ /* 3.6 Функция для описателя атрибутов документов «Договор» (в раздел «Реестр перечислений) */
+ 
+ return SRESULT;
+
+end;
+-------------------------------
+create or replace function UDO_F_SLREGTRN_OBS
+(
+ NCOMPANY         in number,        -- Организация
+ NRN            in number        -- Регистрационный номер
+) 
+return varchar2
+as
+ /* grant execute on UDO_F_SLREGTRN_OBS to public; */
+ SRESULT          PKG_STD.TSTRING;       -- Результат функции
+ 
+begin
+ /* 3.7 Функция для описателя атрибутов документов «ОБС» (в раздел «Реестр перечислений) */
+ 
+ return SRESULT;
+
+end;
+-------------------------------
+create or replace function UDO_F_SLREGTRN_IGK
+(
+ NCOMPANY         in number,        -- Организация
+ NRN            in number        -- Регистрационный номер
+) 
+return varchar2
+as
+ /* grant execute on UDO_F_SLREGTRN_IGK to public; */
+ SRESULT          PKG_STD.TSTRING;       -- Результат функции
+ 
+begin
+ /* 3.8 Функция для описателя атрибутов документов «ИГК» (в раздел «Реестр перечислений) */
+ 
+ return SRESULT;
+
+end;
+-------------------------------
+create or replace function UDO_F_SLREGTRN_ORDER_STAGE
+(
+ NCOMPANY         in number,        -- Организация
+ NRN            in number        -- Регистрационный номер
+) 
+return varchar2
+as
+ /* grant execute on UDO_F_SLREGTRN_ORDER_STAGE to public; */
+ SRESULT          PKG_STD.TSTRING;       -- Результат функции
+ 
+begin
+ /* 3.9 Функция для описателя атрибутов документов «Этап планового заказа» (в раздел «Реестр перечислений) */
+ 
+ return SRESULT;
+
+end;
+-------------------------------
+create or replace function UDO_F_SLREGTRN_INTERVAL
+(
+ NCOMPANY         in number,        -- Организация
+ NRN            in number        -- Регистрационный номер
+) 
+return varchar2
+as
+ /* grant execute on UDO_F_SLREGTRN_INTERVAL to public; */
+ SRESULT          PKG_STD.TSTRING;       -- Результат функции
+ 
+begin
+ /* 3.10 Функция для описателя атрибутов документов «Интервал» (в раздел «Реестр перечислений) */
+ 
+ return SRESULT;
+
+end;
+-------------------------------
+create or replace function UDO_F_SLREGTRN_PLAN_SALARY_PAY
+(
+ NCOMPANY         in number,        -- Организация
+ NRN            in number        -- Регистрационный номер
+) 
+return varchar2
+as
+ /* grant execute on UDO_F_SLREGTRN_PLAN_SALARY_PAY to public; */
+ SRESULT          PKG_STD.TSTRING;       -- Результат функции
+ 
+begin
+ /* 3.11 Функция для описателя атрибутов документов «Плановый платеж ЗП» (в раздел «Реестр перечислений) */
+ 
+ return SRESULT;
+
+end;
+-------------------------------
+create or replace function UDO_F_SLREGTRN_PLAN_NDFL_PAY
+(
+ NCOMPANY         in number,        -- Организация
+ NRN            in number        -- Регистрационный номер
+) 
+return varchar2
+as
+ /* grant execute on UDO_F_SLREGTRN_PLAN_NDFL_PAY to public; */
+ SRESULT          PKG_STD.TSTRING;       -- Результат функции
+ 
+begin
+ /* 3.12 Функция для описателя атрибутов документов «Плановый платеж НДФЛ» (в раздел «Реестр перечислений) */
+ 
+ return SRESULT;
+
+end;
+-------------------------------
+create or replace function UDO_F_SLREGTRN_FACT_SALARY_PAY
+(
+ NCOMPANY         in number,        -- Организация
+ NRN            in number        -- Регистрационный номер
+) 
+return varchar2
+as
+ /* grant execute on UDO_F_SLREGTRN_FACT_SALARY_PAY to public; */
+ SRESULT          PKG_STD.TSTRING;       -- Результат функции
+ 
+begin
+ /* 3.13 Функция для описателя атрибутов документов «Фактический платеж ЗП» (в раздел «Реестр перечислений) */
+ 
+ return SRESULT;
+
+end;
+-------------------------------
+create or replace function UDO_F_SLREGTRN_FACT_NDFL_PAY
+(
+ NCOMPANY         in number,        -- Организация
+ NRN            in number        -- Регистрационный номер
+) 
+return varchar2
+as
+ /* grant execute on UDO_F_SLREGTRN_FACT_NDFL_PAY to public; */
+ SRESULT          PKG_STD.TSTRING;       -- Результат функции
+ 
+begin
+ /* 3.14 Функция для описателя атрибутов документов «Фактический платеж НДФЛ» (в раздел «Реестр перечислений) */
+ 
+ return SRESULT;
+
+end;

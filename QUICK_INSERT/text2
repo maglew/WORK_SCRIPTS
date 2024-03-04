@@ -1,0 +1,3 @@
+if not UDO_PKG_CONV$ppc$vars.ppc$loaded then
+              UDO_PKG_CONV$ppc$vars := PARUS.UDO_PKG_CONV$ppc$load();
+            end if;

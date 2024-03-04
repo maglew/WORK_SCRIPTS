@@ -1,0 +1,119 @@
+        rPPGZWUS := null;
+
+        /* получение списка узлов row */
+        rLIST_ROW := PKG_XPATH.LIST_NODES( rNODE_TABLE,'USIALL/US' );
+
+        /* цикл по узлам row */
+        for i in 1..PKG_XPATH.COUNT_NODES( rLIST_ROW )
+        loop
+          /* узел row */
+          rNODE_ROW            := PKG_XPATH.ITEM_NODE( rLIST_ROW,i );
+          rNODE_CODE           := PKG_XPATH.SINGLE_NODE(rNODE_ROW,'Z_UC');
+          rPPGZWUS.Z_UC_YEAR   := PKG_XPATH.ATTRIBUTE( rNODE_ROW,'val1' );
+          rPPGZWUS.Z_UC_1YEAR  := PKG_XPATH.ATTRIBUTE( rNODE_ROW,'val2' );
+          rPPGZWUS.Z_UC_2YEAR  := PKG_XPATH.ATTRIBUTE( rNODE_ROW,'val3' );
+          
+          /* узел row */
+          rNODE_ROW             := PKG_XPATH.ITEM_NODE( rLIST_ROW,i );
+          rNODE_CODE            := PKG_XPATH.SINGLE_NODE(rNODE_ROW,'Z_ACS');
+          rPPGZWUS.Z_ACS_YEAR   := PKG_XPATH.ATTRIBUTE( rNODE_ROW,'val1' );
+          rPPGZWUS.Z_ACS_1YEAR  := PKG_XPATH.ATTRIBUTE( rNODE_ROW,'val2' );
+          rPPGZWUS.Z_ACS_2YEAR  := PKG_XPATH.ATTRIBUTE( rNODE_ROW,'val3' );
+          
+          /* узел row */
+          rNODE_ROW             := PKG_XPATH.ITEM_NODE( rLIST_ROW,i );
+          rNODE_CODE            := PKG_XPATH.SINGLE_NODE(rNODE_ROW,'Z_ACC');
+          rPPGZWUS.Z_ACC_YEAR   := PKG_XPATH.ATTRIBUTE( rNODE_ROW,'val1' );
+          rPPGZWUS.Z_ACC_1YEAR  := PKG_XPATH.ATTRIBUTE( rNODE_ROW,'val2' );
+          rPPGZWUS.Z_ACC_2YEAR  := PKG_XPATH.ATTRIBUTE( rNODE_ROW,'val3' );
+          
+          /* узел row */
+          rNODE_ROW             := PKG_XPATH.ITEM_NODE( rLIST_ROW,i );
+          rNODE_CODE            := PKG_XPATH.SINGLE_NODE(rNODE_ROW,'Z_TCK');
+          rPPGZWUS.Z_TCK_YEAR   := PKG_XPATH.ATTRIBUTE( rNODE_ROW,'val1' );
+          rPPGZWUS.Z_TCK_1YEAR  := PKG_XPATH.ATTRIBUTE( rNODE_ROW,'val2' );
+          rPPGZWUS.Z_TCK_2YEAR  := PKG_XPATH.ATTRIBUTE( rNODE_ROW,'val3' );
+          
+          /* узел row */
+          rNODE_ROW             := PKG_XPATH.ITEM_NODE( rLIST_ROW,i );
+          rNODE_CODE            := PKG_XPATH.SINGLE_NODE(rNODE_ROW,'Z_SCK');
+          rPPGZWUS.Z_SCK_YEAR   := PKG_XPATH.ATTRIBUTE( rNODE_ROW,'val1' );
+          rPPGZWUS.Z_SCK_1YEAR  := PKG_XPATH.ATTRIBUTE( rNODE_ROW,'val2' );
+          rPPGZWUS.Z_SCK_2YEAR  := PKG_XPATH.ATTRIBUTE( rNODE_ROW,'val3' );
+          
+          /* узел row */
+          rNODE_ROW              := PKG_XPATH.ITEM_NODE( rLIST_ROW,i );
+          rNODE_CODE             := PKG_XPATH.SINGLE_NODE(rNODE_ROW,'Z_O_UC');
+          rPPGZWUS.Z_O_UC_YEAR   := PKG_XPATH.ATTRIBUTE( rNODE_ROW,'val1' );
+          rPPGZWUS.Z_O_UC_1YEAR  := PKG_XPATH.ATTRIBUTE( rNODE_ROW,'val2' );
+          rPPGZWUS.Z_O_UC_2YEAR  := PKG_XPATH.ATTRIBUTE( rNODE_ROW,'val3' );
+
+          /* узел row */
+          rNODE_ROW    :=  PKG_XPATH.ITEM_NODE( rLIST_ROW,i );
+          rNODE_CODE   := PKG_XPATH.SINGLE_NODE(rNODE_ROW,'TER');
+          sTER_CODE    := PKG_XPATH.ATTRIBUTE( rNODE_CODE,'val' );
+          FIND_FPDTRWRK_CODE( 0,0,nCOMPANY,sTER_CODE,nTRWRK );
+
+          begin
+            select US.RN
+              into rPPGZWUS.RN
+              from FPDPPGZWUS US
+             where US.PRN = nGZW_RN
+               and US.TRWRK = nTRWRK;
+               exception when NO_DATA_FOUND then rPPGZWUS.RN := null;
+          end;
+          if rPPGZWUS.RN is null then
+          P_FPDPPGZWUS_BASE_INSERT
+          (
+              nCOMPANY               => nCOMPANY,                   --Организация
+              nPRN                   => nGZW_RN,                    -- Родитель
+              nZ_UC_YEAR             => rPPGZWUS.Z_UC_YEAR,
+              nZ_UC_1YEAR            => rPPGZWUS.Z_UC_1YEAR,
+              nZ_UC_2YEAR            => rPPGZWUS.Z_UC_2YEAR,
+              nZ_ACS_YEAR            => rPPGZWUS.Z_ACS_YEAR,
+              nZ_ACS_1YEAR           => rPPGZWUS.Z_ACS_YEAR,
+              nZ_ACS_2YEAR           => rPPGZWUS.Z_ACS_YEAR,
+              nZ_ACC_YEAR            => rPPGZWUS.Z_ACC_YEAR,
+              nZ_ACC_1YEAR           => rPPGZWUS.Z_ACC_YEAR,
+              nZ_ACC_2YEAR           => rPPGZWUS.Z_ACC_YEAR,
+              nZ_TCK_YEAR            => rPPGZWUS.Z_TCK_YEAR,
+              nZ_TCK_1YEAR           => rPPGZWUS.Z_TCK_YEAR,
+              nZ_TCK_2YEAR           => rPPGZWUS.Z_TCK_YEAR,
+              nZ_SCK_YEAR            => rPPGZWUS.Z_SCK_YEAR,
+              nZ_SCK_1YEAR           => rPPGZWUS.Z_SCK_YEAR,
+              nZ_SCK_2YEAR           => rPPGZWUS.Z_SCK_YEAR,
+              nZ_O_UC_YEAR           => rPPGZWUS.Z_O_UC_YEAR,
+              nZ_O_UC_1YEAR          => rPPGZWUS.Z_O_UC_YEAR,
+              nZ_O_UC_2YEAR          => rPPGZWUS.Z_O_UC_YEAR,
+              nTRWRK                 => nTRWRK,                     -- Территория
+              nRN                    => rPPGZWSNI.RN
+          );
+          else
+            P_FPDPPGZWUS_BASE_UPDATE
+          (
+            nRN                       => rPPGZWSNI.RN,              -- Регистрационный номер
+            nCOMPANY                  => nCOMPANY,                  -- Организация
+            nZ_UC_YEAR                => rPPGZWUS.Z_UC_YEAR,        -- З_УС-очередной год
+            nZ_UC_1YEAR               => rPPGZWUS.Z_UC_1YEAR,       -- З_УС-1-й год пп
+            nZ_UC_2YEAR               => rPPGZWUS.Z_UC_2YEAR,       -- З_УС-2-й год пп
+            nZ_ACS_YEAR               => rPPGZWUS.Z_ACS_YEAR,       -- З_приобретение стац_связи-очередной год
+            nZ_ACS_1YEAR              => rPPGZWUS.Z_ACS_YEAR,       -- З_приобретение стац_связи-1-й год пп
+            nZ_ACS_2YEAR              => rPPGZWUS.Z_ACS_YEAR,       -- З_приобретение стац_связи-2-й год пп
+            nZ_ACC_YEAR               => rPPGZWUS.Z_ACC_YEAR,       -- З_приобретение сот_связи-очередной год
+            nZ_ACC_1YEAR              => rPPGZWUS.Z_ACC_YEAR,       -- З_приобретение сот_связи-1-й год пп
+            nZ_ACC_2YEAR              => rPPGZWUS.Z_ACC_YEAR,       -- З_приобретение сот_связи-2-й год пп
+            nZ_TCK_YEAR               => rPPGZWUS.Z_TCK_YEAR,       -- З_подключение планш_к-очередной год
+            nZ_TCK_1YEAR              => rPPGZWUS.Z_TCK_YEAR,       -- З_подключение планш_к-1-й год пп
+            nZ_TCK_2YEAR              => rPPGZWUS.Z_TCK_YEAR,       -- З_подключение планш_к-2-й год пп
+            nZ_SCK_YEAR               => rPPGZWUS.Z_SCK_YEAR,       -- З_подключение стац_к-очередной год
+            nZ_SCK_1YEAR              => rPPGZWUS.Z_SCK_YEAR,       -- З_подключение стац_к-1-й год пп
+            nZ_SCK_2YEAR              => rPPGZWUS.Z_SCK_YEAR,       -- З_подключение стац_к-2-й год пп
+            nZ_O_UC_YEAR              => rPPGZWUS.Z_O_UC_YEAR,      -- З_иные УС-очередной год
+            nZ_O_UC_1YEAR             => rPPGZWUS.Z_O_UC_YEAR,      -- З_иные УС-1-й год пп
+            nZ_O_UC_2YEAR             => rPPGZWUS.Z_O_UC_YEAR       -- З_иные УС-2-й год пп
+          );
+          end if;
+              
+          sTER_CODE               := null;
+
+          end loop;
