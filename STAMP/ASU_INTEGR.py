@@ -31,6 +31,8 @@ def build_func():
     srecord = lines[0].upper()
     srecord = srecord.replace('\r','')
     srecord = srecord[2:]
+    output.write("R"+srecord + "            " + srecord + "%rowtype; \r")
+    output.write(" \r")
     for line in lines:
         param = line[:line.find('\r')].upper()
         #txt = line[line.find('-- '):]
@@ -124,7 +126,38 @@ def create_insert():
                 output.write("  null,\n")
         output.write(");\n")
 
+def build_using():
+    text = ''
+    for line in lines:
+        text = line.upper()
+        text = 'in ' + text
+        text = text.replace('\r','')
+        # text = line[line.find(' - '):].replace('\r', '')
+        output.write("  " + text+'\r')
+
+
+def build_query():
+    text = ''
+    for line in lines:
+        text = line.upper()
+        text = "' " + text+"'||"
+        text = text.replace('\r','')
+        # text = line[line.find(' - '):].replace('\r', '')
+        output.write("  " + text+'\r')
+
+def build_VIEW_PARAMS():
+    attrs = inp.split(', ')
+    for line in attrs:
+        #output.write("  " + line[0]+line.upper()[1:]+',\r')
+        output.write("  " + line + ',\r')
+
 #params_get2()
 
-build_func()
+#build_func()
 #create_insert()
+
+#build_using()
+
+#build_query()
+
+build_VIEW_PARAMS()

@@ -1,11 +1,1 @@
-UDO_F_LI_PROJECTSTAGES_INC_REG --3.4 Функция для описателя атрибутов документов «Включено в реестр»  (в раздел «Фактическая трудоемкость за период (этапы пз)»)
-UDO_F_SLREGTRNPR_PAYABLE  --3.5 Функция для описателя атрибутов документов «К выплате»  (в раздел «Реестр перечислений (спецификация)»)
-UDO_F_SLREGTRN_CONTRACT   --3.6 Функция для описателя атрибутов документов «Договор»  (в раздел «Реестр перечислений)
-UDO_F_SLREGTRN_OBS         --3.7 Функция для описателя атрибутов документов «ОБС»  (в раздел «Реестр перечислений)
-UDO_F_SLREGTRN_IGK        --3.8 Функция для описателя атрибутов документов «ИГК»  (в раздел «Реестр перечислений)
-UDO_F_SLREGTRN_ORDER_STAGE --3.9 Функция для описателя атрибутов документов «Этап планового заказа»  (в раздел «Реестр перечислений)
-UDO_F_SLREGTRN_INTERVAL    --3.10 Функция для описателя атрибутов документов «Интервал»  (в раздел «Реестр перечислений)
-UDO_F_SLREGTRN_PLAN_SALARY_PAY --3.11 Функция для описателя атрибутов документов «Плановый платеж ЗП»  (в раздел «Реестр перечислений)
-UDO_F_SLREGTRN_PLAN_NDFL_PAY --3.12 Функция для описателя атрибутов документов «Плановый платеж НДФЛ»  (в раздел «Реестр перечислений)
-UDO_F_SLREGTRN_FACT_SALARY_PAY  --3.13 Функция для описателя атрибутов документов «Фактический платеж ЗП»  (в раздел «Реестр перечислений)
-UDO_F_SLREGTRN_FACT_NDFL_PAY --3.14 Функция для описателя атрибутов документов «Фактический платеж НДФЛ»  (в раздел «Реестр перечислений)
+in RRINVTOSUP.COMPANY, in RRINVTOSUP.CRN, in RRINVTOSUP.JUR_PERS, in RRINVTOSUP.DOCTYPE, in RRINVTOSUP.PREF, in RRINVTOSUP.NUMB, in RRINVTOSUP.DOCDATE, in RRINVTOSUP.STATUS, in RRINVTOSUP.SERVACT_SIGN, in RRINVTOSUP.WORK_DATE, in RRINVTOSUP.VALID_DOCTYPE, in RRINVTOSUP.VALID_NUMB, in RRINVTOSUP.VALID_DOCDATE, in RRINVTOSUP.SUPPLIER, in RRINVTOSUP.FACEACC, in RRINVTOSUP.GRAPHPOINT, in RRINVTOSUP.STORE, in RRINVTOSUP.STOREOPER, in RRINVTOSUP.MOL, in RRINVTOSUP.AGNFIFO, in RRINVTOSUP.PARTY, in RRINVTOSUP.CURRENCY, in RRINVTOSUP.RECIP_DOCTYPE, in RRINVTOSUP.RECIP_NUMB, in RRINVTOSUP.RECIP_DOCDATE, in RRINVTOSUP.RECEIVER, in RRINVTOSUP.CURR_RATE, in RRINVTOSUP.CURR_RATE_BASE, in RRINVTOSUP.CURR_RATE_ACC, in RRINVTOSUP.CURR_RATE_INV_ACC, in RRINVTOSUP.SIGNTAX, in RRINVTOSUP.SUMM, in RRINVTOSUP.SUMMTAX, in RRINVTOSUP.ROUTE, in RRINVTOSUP.WAYBILLNUMB, in RRINVTOSUP.FERRYMAN, in RRINVTOSUP.DRIVER, in RRINVTOSUP.CAR, in RRINVTOSUP.TRAILER1, in RRINVTOSUP.TRAILER2, in RRINVTOSUP.NOTE, in RRINVTOSUP.BARCODE, out RRINVTOSUP.RN
